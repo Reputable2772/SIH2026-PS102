@@ -130,100 +130,265 @@ This is the primary extraction endpoint for all project-level records, vendor di
 
 ### 3.1 Combo Syntax & Scope
 - **All India (Lok Sabha):** `"0,0,0,2"`
-- **All India (Rajya Sabha):** `"0,0,0,1"`
-- **State-level Scope:** `"<STATE_ID>,0,0,2"` *(e.g. `"11,0,0,2"` for Delhi LS)*
+- **All India (Rajya Sabha):** `"0,0,0,1"` *(Note: Live portal server frequently returns 503 for all-India RS combo; use state-level combos `"<STATE_ID>,0,0,1"` instead)*
+- **State-level Scope:** `"<STATE_ID>,0,0,2"` *(e.g. `"11,0,0,2"` for Delhi Lok Sabha)*
 - **Constituency Scope:** `"<STATE_ID>,<CONST_ID>,0,2"`
 - **MP Scope:** `"<STATE_ID>,<CONST_ID>,<MP_ID>,2"`
 
+### 3.2 Relational Model & Cross-Dataset Linkage
+
+All six datasets and attachment endpoints share consistent foreign keys allowing complete end-to-end tracking of a work item:
+
+```mermaid
+erDiagram
+    MP_ALLOCATION ||--o{ WORKS_RECOMMENDED : "earmarks quota"
+    WORKS_RECOMMENDED ||--o| WORKS_SANCTIONED : "approves via WORK_RECOMMENDATION_DTL_ID"
+    WORKS_SANCTIONED ||--o{ EXPENDITURE : "disburses funds via WORK_ID"
+    WORKS_SANCTIONED ||--o| WORKS_COMPLETED : "finalizes asset via WORK_ID"
+    WORKS_COMPLETED ||--o{ ATTACHMENTS : "links photos & reports via ATTACH_ID"
+
+    WORKS_RECOMMENDED {
+        int WORK_RECOMMENDATION_DTL_ID PK
+        string LETTER_NO
+        string ACTIVITY_NAME
+        float RECOMMENDED_AMOUNT
+        string WORK_STAGE
+    }
+    WORKS_SANCTIONED {
+        int WORK_RECOMMENDATION_DTL_ID FK
+        float SANCTION_AMOUNT
+        string SANCTION_DATE
+        int FLAG
+    }
+    EXPENDITURE {
+        string WORK_ID FK
+        int WORK_RECOMMENDATION_DTL_ID FK
+        string VENDOR_NAME
+        float FUND_DISBURSED_AMT
+        string EXPENDITURE_DATE
+    }
+    WORKS_COMPLETED {
+        int WORK_ID PK
+        int WORK_RECOMMENDATION_DTL_ID FK
+        int ATTACH_ID FK
+        float ACTUAL_AMOUNT
+        string ACTUAL_END_DATE
+    }
+```
+
 ---
 
-### 3.2 Dataset 1: Works Recommended
+### 3.3 Dataset 1: Works Recommended
 - **Request Key (`key`):** `"Works Recommended"`
 - **Response Key:** `"Total Works Recommended"`
-- **Description:** Granular inventory of all developmental works recommended by MPs.
-- **Key Fields:**
-  - `WORK_CATEGORY`: Functional sector (e.g. `Normal/Others`, `Drinking Water`, `Health`)
-  - `ACTIVITY_NAME`: Full activity code and name (e.g. `WS/MP18398/2026-2027/270936-...`)
-  - `WORK_DESCRIPTION`: Detailed project scope entered by MP office
-  - `RECOMMENDATION_DATE`: Date of MP recommendation letter
-  - `RECOMMENDED_AMOUNT`: Amount earmarked in Rupees
-  - `IDA_NAME`: Nodal/Implementing District Authority responsible
-  - `MP_NAME`: Sponsoring Member of Parliament
-  - `CONSTITUENCY`: Parliamentary constituency
-  - `STATE_NAME`: State name
-  - `HOUSE_OF_PARLIAMENT`: `2` (Lok Sabha) or `1` (Rajya Sabha)
+- **Description:** Granular inventory of all developmental works recommended by MPs before sanction approval.
+- **Request Example:**
+  ```json
+  {
+    "combo": "11,0,0,2",
+    "key": "Works Recommended"
+  }
+  ```
+- **Raw Response Wrapper:**
+  ```json
+  {
+    "Total Works Recommended": "[{\"Sno\":1,\"WORK_RECOMMENDATION_DTL_ID\":270936,\"LETTER_NO\":\"LN/MP18398/2025-2026/47\",\"RECOMMENDATION_DATE\":\"25-Feb-2026\",\"RECOMMENDED_AMOUNT\":941508.0,\"WORK_CATEGORY\":\"Normal/Others\",\"ACTIVITY_NAME\":\"WS/MP18398/2026-2027/270936-Fitting of Sitting RCC Benches in Public Places\",\"WORK_DESCRIPTION\":\"Providing and fixing of RCC Chair Benches in different locations in Baktawarpur Ward No 5\",\"WORK_STAGE\":\"Pending for Sanction\",\"SANCTION_AMOUNT\":941508.0,\"SANCTION_DATE\":\"03-Sep-2026\",\"FLAG\":1,\"STATE_NAME\":\"Delhi\",\"CONSTITUENCY_ID\":98,\"CONSTITUENCY\":\"NORTH WEST DELHI(SC)\",\"IDA_NAME\":\"NORTH WEST(COMMISSIONER NORTH WEST)\",\"MP_NAME\":\"Yogendra Chandoliya\",\"HOUSE_OF_PARLIAMENT\":2,\"TENURE\":\"18th Lok Sabha\",\"TENURE_START_DATE\":\"Jun 4, 2024 12:00:00 AM\",\"TENURE_END_DATE\":\"Jun 3, 2029 11:59:59 PM\"}]"
+  }
+  ```
 
-### 3.3 Dataset 2: Works Sanctioned
+#### Data Dictionary
+| Field | Type | Nullable | Example | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `Sno` | Integer | No | `1` | Row sequence index in current query result set |
+| `WORK_RECOMMENDATION_DTL_ID` | Integer | No | `270936` | **Primary Key** uniquely identifying the recommendation record |
+| `LETTER_NO` | String | No | `"LN/MP18398/2025-2026/47"` | Official letter reference issued by MP office |
+| `RECOMMENDATION_DATE` | String | No | `"25-Feb-2026"` | Date MP formally submitted the recommendation letter |
+| `RECOMMENDED_AMOUNT` | Float | No | `941508.0` | Earmarked budget in Indian Rupees (INR) |
+| `WORK_CATEGORY` | String | No | `"Normal/Others"` | Sector categorization (e.g. `Drinking Water`, `Health`, `Education`) |
+| `ACTIVITY_NAME` | String | No | `"WS/MP18398/2026-2027/270936-..."` | System composite activity identifier and title |
+| `WORK_DESCRIPTION` | String | Yes | `"Providing and fixing of RCC Benches..."` | Scope, technical specs, and location details |
+| `WORK_STAGE` | String | No | `"Pending for Sanction"` | Status: `"Pending for Sanction"`, `"Sanction"`, etc. |
+| `SANCTION_AMOUNT` | Float | Yes | `941508.0` | Preliminary sanction estimate |
+| `SANCTION_DATE` | String | Yes | `"03-Sep-2026"` | Null if still pending; populated when sanction issued |
+| `FLAG` | Integer | No | `1` | Workflow attachment stage indicator (`1` = Recommendation stage) |
+| `STATE_NAME` | String | No | `"Delhi"` | State or Union Territory |
+| `CONSTITUENCY_ID` | Integer | No | `98` | Foreign key matching `getConstituencyData` |
+| `CONSTITUENCY` | String | No | `"NORTH WEST DELHI(SC)"` | Parliamentary constituency name |
+| `IDA_NAME` | String | No | `"NORTH WEST(COMMISSIONER NORTH WEST)"` | Implementing District Authority (District Magistrate / Collector) |
+| `MP_NAME` | String | No | `"Yogendra Chandoliya"` | Sponsoring Member of Parliament |
+| `HOUSE_OF_PARLIAMENT` | Integer | No | `2` | `2` = Lok Sabha, `1` = Rajya Sabha |
+| `TENURE` | String | No | `"18th Lok Sabha"` | Parliamentary tenure name |
+| `TENURE_START_DATE` | String | No | `"Jun 4, 2024 12:00:00 AM"` | Term commencement timestamp |
+| `TENURE_END_DATE` | String | No | `"Jun 3, 2029 11:59:59 PM"` | Term conclusion timestamp |
+
+---
+
+### 3.4 Dataset 2: Works Sanctioned
 - **Request Key (`key`):** `"Works Sanctioned"`
 - **Response Key:** `"Total Sanction Work"`
-- **Description:** Projects formally checked for feasibility and approved by District Magistrates/Collectors (IDA).
-- **Key Fields:**
-  - All recommended fields above, plus:
+- **Description:** Projects evaluated for technical feasibility, cost estimation, and formally accorded administrative & financial sanction by the District Authority.
+- **Request Example:**
+  ```json
+  {
+    "combo": "11,0,0,2",
+    "key": "Works Sanctioned"
+  }
+  ```
+- **Response Schema:** Shares the same 21-column schema as Works Recommended with key milestone criteria:
+  - `WORK_STAGE`: Strictly `"Sanction"`
+  - `SANCTION_AMOUNT`: Officially approved budget allocation
   - `SANCTION_DATE`: Date administrative sanction was approved
-  - `SANCTION_AMOUNT`: Officially sanctioned budget (in Rupees)
-  - `WORK_STAGE`: Approval stage
-  - `FLAG`: Integer attachment flag (used to fetch file attachments)
+  - `FLAG`: Advances to `2` (Sanction order attached)
 
-### 3.4 Dataset 3: Works Completed
+---
+
+### 3.5 Dataset 3: Works Completed
 - **Request Key (`key`):** `"Works Completed"`
 - **Response Key:** `"Total Works Completed"`
-- **Description:** Durable community assets officially marked complete by Implementing Agencies following final payment release.
-- **Key Fields:**
-  - `WORK_ID`: Integer unique project ID (e.g. `148495`)
-  - `ACTIVITY_NAME`: Formal activity reference
-  - `WORK_CATEGORY`: Sector categorization
-  - `WORK_DESCRIPTION`: Scope of work
-  - `ACTUAL_AMOUNT`: Final total cost disbursed for completion (in Rupees)
-  - `ACTUAL_END_DATE`: Project sign-off / completion date
-  - `LETTER_NO`: MP recommendation letter identifier
-  - `IDA_NAME`: District Authority name
-  - `MP_NAME`: MP name
-  - `CONSTITUENCY`: Constituency name
-  - `FLAG`: Media flag (`3` for completion files)
-  - `FILE_STATUS`: Boolean (`true` indicates attachments/photos are uploaded)
-  - `AVERAGE_RATING`: Citizen feedback rating (0-5)
+- **Description:** Physically verified community assets signed off by Implementing Agencies and IDAs following project completion and final payout.
+- **Request Example:**
+  ```json
+  {
+    "combo": "11,0,0,2",
+    "key": "Works Completed"
+  }
+  ```
+- **Raw Response Wrapper:**
+  ```json
+  {
+    "Total Works Completed": "[{\"Sno\":1,\"WORK_ID\":148495,\"WORK_RECOMMENDATION_DTL_ID\":186044,\"LETTER_NO\":\"LN/MP880/2024-2025/50\",\"ACTIVITY_NAME\":\"WS/MP880/2025-2026/186044-Street lights\",\"WORK_CATEGORY\":\"Normal/Others\",\"WORK_DESCRIPTION\":\"Provision of Semi High Mast Pole with LED Light\",\"ACTUAL_AMOUNT\":1391353.0,\"ACTUAL_END_DATE\":\"09-Dec-2025\",\"ATTACH_ID\":1836498,\"FLAG\":3,\"FILE_STATUS\":true,\"AVERAGE_RATING\":0.0,\"STATE_NAME\":\"Delhi\",\"CONSTITUENCY_ID\":101,\"CONSTITUENCY\":\"NORTH EAST DELHI\",\"IDA_NAME\":\"CENTRAL(COMMISSIONER MCD (CENTRAL DISTRICT))\",\"MP_NAME\":\"Manoj Tiwari\"}]"
+  }
+  ```
 
-### 3.5 Dataset 4: Expenditure on Completed and On-going Works as on Date
+#### Data Dictionary
+| Field | Type | Nullable | Example | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `Sno` | Integer | No | `1` | Row sequence index |
+| `WORK_ID` | Integer | No | `148495` | **Primary Unique Identifier** for the completed asset |
+| `WORK_RECOMMENDATION_DTL_ID` | Integer | No | `186044` | Foreign key linking back to initial recommendation |
+| `LETTER_NO` | String | No | `"LN/MP880/2024-2025/50"` | MP recommendation letter number |
+| `ACTIVITY_NAME` | String | No | `"WS/MP880/2025-2026/186044-Street lights"` | Full activity code and title |
+| `WORK_CATEGORY` | String | No | `"Normal/Others"` | Functional development sector |
+| `WORK_DESCRIPTION` | String | Yes | `"Provision of Semi High Mast Pole..."` | Final verified scope of work |
+| `ACTUAL_AMOUNT` | Float | No | `1391353.0` | Final total disbursement cost in Rupees |
+| `ACTUAL_END_DATE` | String | No | `"09-Dec-2025"` | Official completion & commissioning date |
+| `ATTACH_ID` | Integer | Yes | `1836498` | Media attachment group ID for completion photos and reports |
+| `FLAG` | Integer | No | `3` | Stage flag (`3` = Completion / Handover) |
+| `FILE_STATUS` | Boolean | No | `true` | `true` if inspection photos or completion orders are uploaded |
+| `AVERAGE_RATING` | Float | No | `0.0` | Citizen feedback star rating (scale: 0.0 - 5.0) |
+| `STATE_NAME` | String | No | `"Delhi"` | State / UT name |
+| `CONSTITUENCY_ID` | Integer | No | `101` | Constituency identifier |
+| `CONSTITUENCY` | String | No | `"NORTH EAST DELHI"` | Parliamentary constituency |
+| `IDA_NAME` | String | No | `"CENTRAL(COMMISSIONER MCD...)"` | Implementing District Authority |
+| `MP_NAME` | String | No | `"Manoj Tiwari"` | Hon'ble MP name |
+
+---
+
+### 3.6 Dataset 4: Expenditure on Completed and On-going Works as on Date
 - **Request Key (`key`):** `"Expenditure on Completed and On-going Works as on Date"`
 - **Response Key:** `"Total Expenditure"`
-- **Description:** Granular invoice & payment vouchers released to external vendors/contractors.
-- **Key Fields:**
-  - `WORK_ID`: Work reference code (e.g. `WS/MP18400/2025-2026/199528`)
-  - `ACTIVITY_NAME`: Title of work
-  - `VENDOR_NAME`: Beneficiary company/contractor (e.g. `Radhey Mohan International`)
-  - `VENDOR_ID`: System vendor ID
-  - `FUND_DISBURSED_AMT`: Payment released in that disbursement installment (in Rupees)
-  - `EXPENDITURE_DATE`: Payment date
-  - `WORK_STATUS`: Payment status (e.g. `Payment In-Progress`, `Completed`)
-  - `IA_NAME`: Implementing Agency responsible for execution
-  - `IDA_NAME`: District Authority name
-  - `MP_NAME`: MP name
-  - `CONSTITUENCY`: Constituency name
+- **Description:** Itemized procurement and milestone disbursement transactions released to vendors, contractors, and implementing agencies.
+- **Request Example:**
+  ```json
+  {
+    "combo": "11,0,0,2",
+    "key": "Expenditure on Completed and On-going Works as on Date"
+  }
+  ```
+- **Raw Response Wrapper:**
+  ```json
+  {
+    "Total Expenditure": "[{\"Sno\":1,\"WORK_ID\":\"WS/MP18400/2025-2026/199528\",\"WORK_RECOMMENDATION_DTL_ID\":199528,\"ACTIVITY_NAME\":\"Installation of multi-gym equipment\",\"VENDOR_NAME\":\"Radhey Mohan International\",\"VENDOR_ID\":43677,\"FUND_DISBURSED_AMT\":165416.0,\"EXPENDITURE_DATE\":\"19-May-2026\",\"WORK_STATUS\":\"Payment In-Progress\",\"IA_NAME\":\"Director(Hort)-II/(West)\",\"IDA_NAME\":\"WEST(COMMISSIONER MCD WEST)\",\"LETTER_NO\":\"LN/MP18400/2025-2026/21\",\"MP_NAME\":\"Kamaljeet Sehrawat\",\"HOUSE_OF_PARLIAMENT\":2,\"CONSTITUENCY\":\"WEST DELHI\",\"STATE_NAME\":\"Delhi\",\"TENURE\":\"18th Lok Sabha\",\"TENURE_START_DATE\":\"Jun 4, 2024 12:00:00 AM\",\"TENURE_END_DATE\":\"Jun 3, 2029 11:59:59 PM\"}]"
+  }
+  ```
 
-### 3.6 Dataset 5: Allocated Limit for Hon'ble MPs
+#### Data Dictionary
+| Field | Type | Nullable | Example | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `Sno` | Integer | No | `1` | Row sequence index |
+| `WORK_ID` | String | No | `"WS/MP18400/2025-2026/199528"` | Project work code string |
+| `WORK_RECOMMENDATION_DTL_ID` | Integer | No | `199528` | Recommendation detail foreign key |
+| `ACTIVITY_NAME` | String | No | `"Installation of multi-gym equipment"` | Activity description |
+| `VENDOR_NAME` | String | No | `"Radhey Mohan International"` | Beneficiary vendor or contracting entity |
+| `VENDOR_ID` | Integer | No | `43677` | System vendor registration identifier |
+| `FUND_DISBURSED_AMT` | Float | No | `165416.0` | Voucher disbursement amount in Rupees |
+| `EXPENDITURE_DATE` | String | No | `"19-May-2026"` | Payment voucher clearance date |
+| `WORK_STATUS` | String | No | `"Payment In-Progress"` | Status: `"Payment In-Progress"`, `"Completed"` |
+| `IA_NAME` | String | No | `"Director(Hort)-II/(West)"` | Implementing Agency executing the physical work |
+| `IDA_NAME` | String | No | `"WEST(COMMISSIONER MCD WEST)"` | Nodal Implementing District Authority |
+| `LETTER_NO` | String | No | `"LN/MP18400/2025-2026/21"` | Sponsoring MP letter reference |
+| `MP_NAME` | String | No | `"Kamaljeet Sehrawat"` | Member of Parliament |
+| `HOUSE_OF_PARLIAMENT` | Integer | No | `2` | `2` = Lok Sabha, `1` = Rajya Sabha |
+| `CONSTITUENCY` | String | No | `"WEST DELHI"` | Constituency name |
+| `STATE_NAME` | String | No | `"Delhi"` | State / UT name |
+| `TENURE` | String | No | `"18th Lok Sabha"` | Parliamentary tenure |
+| `TENURE_START_DATE` | String | No | `"Jun 4, 2024 12:00:00 AM"` | Term start date |
+| `TENURE_END_DATE` | String | No | `"Jun 3, 2029 11:59:59 PM"` | Term end date |
+
+---
+
+### 3.7 Dataset 5: Allocated Limit for Hon'ble MPs
 - **Request Key (`key`):** `"Allocated Limit for Hon'ble MPs"`
 - **Response Key:** `"Allocated Limit"`
-- **Description:** Complete quota entitlement limits and unspent balances for all MPs across India.
-- **Key Fields:**
-  - `MP_NAME`: Hon'ble MP name
-  - `HOUSE_NAME`: `Lok Sabha` or `Rajya Sabha`
-  - `CONSTITUENCY`: Constituency name
-  - `STATE_NAME`: State name
-  - `ALLOCATED_AMT`: Entitlement limit in Rupees (e.g. `154306950`)
-  - `TENURE`: Tenure name (e.g. `18th Lok Sabha`)
-  - `TENURE_START_DATE`: Term start
-  - `TENURE_END_DATE`: Term end
+- **Description:** Complete statutory allocation limits, entitlement quotas, and tenure dates for all Members of Parliament.
+- **Request Example:**
+  ```json
+  {
+    "combo": "0,0,0,2",
+    "key": "Allocated Limit for Hon'ble MPs"
+  }
+  ```
+- **Raw Response Wrapper:**
+  ```json
+  {
+    "Allocated Limit": "[{\"Sno\":1,\"MP_NAME\":\"Bansuri Swaraj\",\"HOUSE_NAME\":\"Lok Sabha\",\"HOUSE_OF_PARLIAMENT\":\"2\",\"CONSTITUENCY\":\"NEW DELHI\",\"STATE_NAME\":\"Delhi\",\"ALLOCATED_AMT\":154306950.0,\"TENURE\":\"18th Lok Sabha\",\"TENURE_START_DATE\":\"Jun 4, 2024 12:00:00 AM\",\"TENURE_END_DATE\":\"Jun 3, 2029 11:59:59 PM\"}]"
+  }
+  ```
 
-### 3.7 Dataset 6: Amount Consented for Calamity
+#### Data Dictionary
+| Field | Type | Nullable | Example | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `Sno` | Integer | No | `1` | Row sequence index |
+| `MP_NAME` | String | No | `"Bansuri Swaraj"` | Hon'ble MP name |
+| `HOUSE_NAME` | String | No | `"Lok Sabha"` | House (`Lok Sabha` / `Rajya Sabha`) |
+| `HOUSE_OF_PARLIAMENT` | String | No | `"2"` | House code |
+| `CONSTITUENCY` | String | No | `"NEW DELHI"` | Parliamentary constituency name |
+| `STATE_NAME` | String | No | `"Delhi"` | State / UT name |
+| `ALLOCATED_AMT` | Float | No | `154306950.0` | Statutory entitlement limit allocated in Rupees |
+| `TENURE` | String | No | `"18th Lok Sabha"` | Parliamentary tenure |
+| `TENURE_START_DATE` | String | No | `"Jun 4, 2024 12:00:00 AM"` | Tenure commencement date |
+| `TENURE_END_DATE` | String | No | `"Jun 3, 2029 11:59:59 PM"` | Tenure conclusion date |
+
+---
+
+### 3.8 Dataset 6: Amount Consented for Calamity
 - **Request Key (`key`):** `"Amount consented for Calamity"`
 - **Response Key:** `"Total Calimity Consent"`
-- **Description:** Relief quota transferred by MPs for declared National/State natural disasters.
-- **Key Fields:**
-  - `MP_NAME`: MP name
-  - `CALAMITY_NAME`: Incident name (e.g. `Flood 2025 in Punjab`)
-  - `TYPE`: `National Calamity` or `State Calamity`
-  - `CONSENTED_AMOUNT`: Transferred fund amount in Rupees
-  - `CRT_DT`: Consent approval date
+- **Description:** MPLADS funds voluntarily contributed by MPs out of their annual quota towards relief and rehabilitation in areas affected by severe natural calamities.
+- **Request Example:**
+  ```json
+  {
+    "combo": "0,0,0,2",
+    "key": "Amount consented for Calamity"
+  }
+  ```
+- **Raw Response Wrapper:**
+  ```json
+  {
+    "Total Calimity Consent": "[{\"Sno\":1,\"MP_NAME\":\"Dr. Subhas Sarkar\",\"CALAMITY_NAME\":\"Flood 2025 in Punjab\",\"TYPE\":\"State Calamity\",\"CONSENTED_AMOUNT\":5000000.0,\"CRT_DT\":\"12-Aug-2025\"},{\"Total_Amt\":40567400.0}]"
+  }
+  ```
+
+#### Data Dictionary
+| Field | Type | Nullable | Example | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `Sno` | Integer | Yes | `1` | Row index (absent on summary footer row) |
+| `MP_NAME` | String | Yes | `"Dr. Subhas Sarkar"` | Hon'ble MP donating quota |
+| `CALAMITY_NAME` | String | Yes | `"Flood 2025 in Punjab"` | Declared national or state calamity event |
+| `TYPE` | String | Yes | `"State Calamity"` | Classification: `"National Calamity"` or `"State Calamity"` |
+| `CONSENTED_AMOUNT` | Float | Yes | `5000000.0` | Donated relief sum in Rupees |
+| `CRT_DT` | String | Yes | `"12-Aug-2025"` | Date consent was recorded in e-SAKSHI |
+| `Total_Amt` | Float | Yes | `40567400.0` | Present on aggregate summary row |
 
 ---
 
