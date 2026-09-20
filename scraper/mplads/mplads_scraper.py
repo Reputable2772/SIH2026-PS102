@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-MPLADS e-SAKSHI Bulk Dataset Downloader
-Fetches full granular datasets (Recommended, Sanctioned, Completed, Vendor Expenditures, Allocations, Calamity)
-with state-by-state partitioning, robust error handling, and JSON/CSV output.
+MPLADS e-SAKSHI Comprehensive Bulk Scraper
+Extracts all data from the MPLADS portal (Lok Sabha & Rajya Sabha):
+- All 6 granular datasets: Recommended, Sanctioned, Completed, Vendor Expenditures, Allocations, Calamity
+- Master Geographic Reference: States, Districts, Tenures
+- Scheme Cumulative Totals & Metadata
+- Official Scheme Guidelines, User Manuals & Master Works List (Annexure-VIII)
 """
 
 import os
 import json
 import time
+import base64
 import argparse
 import requests
 import pandas as pd
@@ -24,38 +28,32 @@ DATASETS = {
     "recommended": {
         "key": "Works Recommended",
         "resp_key": "Total Works Recommended",
-        "desc": "All works recommended by MPs",
-        "national_ok": False  # large dataset: state-wise download recommended
+        "desc": "All works recommended by MPs"
     },
     "sanctioned": {
         "key": "Works Sanctioned",
         "resp_key": "Total Sanction Work",
-        "desc": "Projects approved by District Authorities",
-        "national_ok": False  # large dataset: state-wise download recommended
+        "desc": "Projects approved by District Authorities"
     },
     "completed": {
         "key": "Works Completed",
         "resp_key": "Total Works Completed",
-        "desc": "Certified completed community projects",
-        "national_ok": False  # large dataset: state-wise download recommended
+        "desc": "Certified completed community projects"
     },
     "expenditures": {
         "key": "Expenditure on Completed and On-going Works as on Date",
         "resp_key": "Total Expenditure",
-        "desc": "Granular vendor disbursement vouchers",
-        "national_ok": False  # large dataset: state-wise download recommended
+        "desc": "Granular vendor disbursement vouchers"
     },
     "allocations": {
         "key": "Allocated Limit for Hon'ble MPs",
         "resp_key": "Allocated Limit",
-        "desc": "MP annual entitlement allocations and balances",
-        "national_ok": True   # small dataset: can fetch all-India directly
+        "desc": "MP annual entitlement allocations and balances"
     },
     "calamity": {
         "key": "Amount consented for Calamity",
         "resp_key": "Total Calimity Consent",
-        "desc": "Disaster relief quota transfers",
-        "national_ok": True   # small dataset: can fetch all-India directly
+        "desc": "Disaster relief quota transfers"
     }
 }
 
@@ -74,69 +72,69 @@ def get_states():
         print(f"[!] Error fetching states list: {e}")
         return []
 
-def fetch_dataset_records(combo_str, dataset_type):
-    """Fetch and parse records for a given combo and dataset type."""
+def get_districts_for_state(state_id):
+    """Fetch all districts in a state."""
+    url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getDistrictByState"
+    try:
+        res = SESSION.post(url, json={"stateId": state_id}, timeout=20)
+        return res.json()
+    except Exception as e:
+        print(f"[!] Error fetching districts for state {state_id}: {e}")
+        return []
+
+def get_tenures(house_name="lok_sabha"):
+    """Fetch tenures for a given house."""
+    house_code = HOUSES[house_name]
+    url = f"{BASE_URL}/rest/PreLoginDashboardData/getTenureData"
+    try:
+        res = SESSION.post(url, json={"uname": f"0,0,0,{house_code}"}, timeout=20)
+        return res.json()
+    except Exception as e:
+        print(f"[!] Error fetching tenures for {house_name}: {e}")
+        return []
+
+def fetch_dataset_records(combo_str, dataset_type, retries=2):
+    """Fetch and parse records for a given combo and dataset type with retry."""
     meta = DATASETS[dataset_type]
     url = f"{BASE_URL}/rest/PreLoginDashboardData/getTilesReportData"
     payload = {
         "combo": combo_str,
         "key": meta["key"]
     }
-    try:
-        res = SESSION.post(url, json=payload, timeout=60)
-        if res.status_code != 200:
-            return []
-        
-        # Decode with error replacement for legacy character bytes (e.g. \xd7)
-        text = res.content.decode("utf-8", errors="replace")
-        data = json.loads(text)
-        
-        raw_list = data.get(meta["resp_key"])
-        if not raw_list:
-            return []
-        
-        # Double-serialized JSON parsing
-        records = json.loads(raw_list) if isinstance(raw_list, str) else raw_list
-        
-        # Filter out summary grand total footer row
-        clean_records = [
-            r for r in records
-            if isinstance(r, dict) and not (len(r) == 1 and "Total_Amt" in r)
-        ]
-        return clean_records
-    except Exception as e:
-        print(f"  [!] Error fetching {dataset_type} for combo {combo_str}: {e}")
-        return []
-
-def download_attachment(work_id, flag=3, output_dir="attachments"):
-    """Download PDF or photo attachments for a completed work."""
-    os.makedirs(output_dir, exist_ok=True)
-    attach_url = f"{BASE_URL}/rest/PreLoginDashboardData/getAttachIdsbyFlag"
-    try:
-        res = SESSION.post(attach_url, json={"json": {"FLAG": flag, "WORK_ID": work_id}}, timeout=20)
-        attach_list = res.json()
-    except Exception as e:
-        print(f"  [!] Error retrieving attachment metadata for work {work_id}: {e}")
-        return []
     
-    if not attach_list or "ATTACH_ID" not in attach_list[0]:
-        return []
-
-    files_saved = []
-    for filename, attach_id in zip(attach_list[0]["FILE_NAME"], attach_list[0]["ATTACH_ID"]):
-        dl_url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getAttachmentById"
+    for attempt in range(retries + 1):
         try:
-            file_res = SESSION.post(dl_url, json={"id": attach_id}, timeout=30).json()
-            if file_res and "URL" in file_res[0]:
-                import base64
-                file_data = base64.b64decode(file_res[0]["URL"])
-                dest = os.path.join(output_dir, f"{work_id}_{filename}")
-                with open(dest, "wb") as f:
-                    f.write(file_data)
-                files_saved.append(dest)
+            res = SESSION.post(url, json=payload, timeout=60)
+            if res.status_code != 200:
+                if attempt < retries:
+                    time.sleep(1)
+                    continue
+                return []
+            
+            # Decode with error replacement for legacy characters (e.g. \xd7)
+            text = res.content.decode("utf-8", errors="replace")
+            data = json.loads(text)
+            
+            raw_list = data.get(meta["resp_key"])
+            if not raw_list:
+                return []
+            
+            # Double-serialized JSON parsing
+            records = json.loads(raw_list) if isinstance(raw_list, str) else raw_list
+            
+            # Filter out summary grand-total footer row
+            clean_records = [
+                r for r in records
+                if isinstance(r, dict) and not (len(r) == 1 and "Total_Amt" in r)
+            ]
+            return clean_records
         except Exception as e:
-            print(f"  [!] Failed to download attachment {filename}: {e}")
-    return files_saved
+            if attempt < retries:
+                time.sleep(1)
+                continue
+            print(f"  [!] Failed fetching {dataset_type} for combo {combo_str}: {e}")
+            return []
+    return []
 
 def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=None, output_format="csv", out_dir="data"):
     """Orchestrates bulk download for a dataset across states and saves to disk."""
@@ -144,13 +142,23 @@ def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=No
     house_code = HOUSES[house_name]
     meta = DATASETS[dataset_name]
     
-    print(f"\n[*] Starting download: Dataset='{dataset_name}' ({meta['desc']}), House='{house_name}'")
+    print(f"\n[*] Extracting: Dataset='{dataset_name}' ({meta['desc']}) | House='{house_name}'")
     all_records = []
     
-    # Optimization: If dataset supports national single-query and no state filter requested
-    if meta["national_ok"] and state_id is None:
+    # Optimization: Allocations for Lok Sabha can be fetched all-India directly
+    if dataset_name == "allocations" and state_id is None and house_name == "lok_sabha":
         combo = f"0,0,0,{house_code}"
         print(f"  Fetching All-India directly via combo '{combo}'... ", end="", flush=True)
+        all_records = fetch_dataset_records(combo, dataset_name)
+        print(f"{len(all_records)} records")
+    elif dataset_name == "allocations" and state_id is None and house_name == "rajya_sabha":
+        combo = f"0,0,0,{house_code}"
+        print(f"  Fetching All-India Rajya Sabha quotas via combo '{combo}'... ", end="", flush=True)
+        all_records = fetch_dataset_records(combo, dataset_name)
+        print(f"{len(all_records)} records")
+    elif dataset_name == "calamity" and state_id is None and house_name == "lok_sabha":
+        combo = f"0,0,0,{house_code}"
+        print(f"  Fetching All-India calamity quota transfers via combo '{combo}'... ", end="", flush=True)
         all_records = fetch_dataset_records(combo, dataset_name)
         print(f"{len(all_records)} records")
     else:
@@ -165,7 +173,7 @@ def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=No
             s_name = state["STATE_NAME"]
             combo = f"{s_id},0,0,{house_code}"
             
-            print(f"  [{idx:02d}/{len(states):02d}] Fetching {s_name} (ID: {s_id})... ", end="", flush=True)
+            print(f"  [{idx:02d}/{len(states):02d}] {s_name} (ID: {s_id})... ", end="", flush=True)
             records = fetch_dataset_records(combo, dataset_name)
             print(f"{len(records)} records")
             all_records.extend(records)
@@ -181,19 +189,116 @@ def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=No
     print(f"[✓] Saved {len(all_records)} records to: {out_file}")
     return out_file
 
-def scrape_all(houses, state_id=None, output_format="csv", out_dir="data"):
-    """Downloads all datasets across specified houses."""
-    print("=" * 70)
-    print("      MPLADS e-SAKSHI FULL BULK EXTRACTION (--all)")
-    print("=" * 70)
-    print(f"Datasets: {list(DATASETS.keys())}")
-    print(f"Houses:   {houses}")
-    print(f"Format:   {output_format}")
-    print(f"Out Dir:  {out_dir}")
-    print("=" * 70)
+def scrape_metadata_and_references(out_dir="data", output_format="csv"):
+    """Scrapes master reference data (States, Districts, Tenures, Cumulative Totals)."""
+    os.makedirs(out_dir, exist_ok=True)
+    print("\n[*] Scraping Master Geographic & Administrative References...")
+    
+    # 1. States & UTs
+    states = get_states()
+    states_file = os.path.join(out_dir, f"master_states.{output_format}")
+    df_states = pd.DataFrame(states)
+    if output_format.lower() == "csv":
+        df_states.to_csv(states_file, index=False, encoding="utf-8")
+    else:
+        df_states.to_json(states_file, orient="records", indent=2, force_ascii=False)
+    print(f"[✓] Saved {len(states)} States/UTs to: {states_file}")
+    
+    # 2. All Districts (All-India)
+    print("  Harvesting all districts across 36 States/UTs...")
+    all_districts = []
+    for s in states:
+        dists = get_districts_for_state(s["STATE_ID"])
+        for d in dists:
+            d["STATE_ID"] = s["STATE_ID"]
+            d["STATE_NAME"] = s["STATE_NAME"]
+            all_districts.append(d)
+        time.sleep(0.1)
+    
+    dist_file = os.path.join(out_dir, f"master_districts.{output_format}")
+    df_dists = pd.DataFrame(all_districts)
+    if output_format.lower() == "csv":
+        df_dists.to_csv(dist_file, index=False, encoding="utf-8")
+    else:
+        df_dists.to_json(dist_file, orient="records", indent=2, force_ascii=False)
+    print(f"[✓] Saved {len(all_districts)} Districts to: {dist_file}")
 
-    summary = []
+    # 3. Tenures
+    tenures = []
+    for h in HOUSES.keys():
+        t_list = get_tenures(h)
+        for t in t_list:
+            t["HOUSE"] = h
+            tenures.append(t)
+    tenure_file = os.path.join(out_dir, f"master_tenures.{output_format}")
+    df_tenures = pd.DataFrame(tenures)
+    if output_format.lower() == "csv":
+        df_tenures.to_csv(tenure_file, index=False, encoding="utf-8")
+    else:
+        df_tenures.to_json(tenure_file, orient="records", indent=2, force_ascii=False)
+    print(f"[✓] Saved Tenures to: {tenure_file}")
+
+    # 4. Scheme Cumulative Lifetime Totals
+    try:
+        url = f"{BASE_URL}/rest/PreLoginDashboardData/getTotalTilesData"
+        totals = SESSION.post(url, json={"uname": "0,0,0,2"}, timeout=20).json()
+        totals_file = os.path.join(out_dir, "scheme_cumulative_totals.json")
+        with open(totals_file, "w", encoding="utf-8") as f:
+            json.dump(totals, f, indent=2, ensure_ascii=False)
+        print(f"[✓] Saved Scheme Cumulative Totals to: {totals_file}")
+    except Exception as e:
+        print(f"  [!] Failed fetching cumulative totals: {e}")
+
+def scrape_official_documents(out_dir="data"):
+    """Downloads official master catalogs, guidelines, and manuals."""
+    doc_dir = os.path.join(out_dir, "official_documents")
+    os.makedirs(doc_dir, exist_ok=True)
+    print(f"\n[*] Downloading Official Policy Documents & Master Works List to '{doc_dir}'...")
+    
+    url = f"{BASE_URL}/rest/PreLoginDashboardData/get_fileNames"
+    try:
+        files = SESSION.post(url, json={"content": "ENGLISH"}, timeout=20).json()
+    except Exception as e:
+        print(f"  [!] Error fetching document manifest: {e}")
+        return
+    
+    for filename in files:
+        dl_url = f"{BASE_URL}/rest/PreLoginDashboardData/getFileData"
+        try:
+            res = SESSION.post(dl_url, json={"json": {"content": "ENGLISH", "name": filename}}, timeout=30).json()
+            if res and "FileUrl" in res:
+                file_bytes = base64.b64decode(res["FileUrl"])
+                dest = os.path.join(doc_dir, filename)
+                with open(dest, "wb") as f:
+                    f.write(file_bytes)
+                print(f"  [✓] Downloaded: {filename}")
+        except Exception as e:
+            print(f"  [!] Failed downloading {filename}: {e}")
+
+def scrape_all(state_id=None, output_format="csv", out_dir="data", skip_docs=False):
+    """
+    Downloads EVERYTHING:
+    - Both Lok Sabha AND Rajya Sabha
+    - All 6 granular datasets
+    - Master Geographic Hierarchy (States, Districts, Tenures)
+    - Cumulative Scheme Totals
+    - Official Master Works List & Guidelines
+    """
     start_time = time.time()
+    print("╔" + "═" * 78 + "╗")
+    print("║          MPLADS e-SAKSHI COMPLETE BULK HARVESTER (--all)                     ║")
+    print("║     Extracting Lok Sabha + Rajya Sabha + References + Official Catalogs      ║")
+    print("╚" + "═" * 78 + "╝")
+    print(f"Target Output Directory: {os.path.abspath(out_dir)}")
+    print(f"Output Format:           {output_format.upper()}")
+    print("═" * 80)
+
+    # 1. Scrape Master References (States, Districts, Tenures, Scheme Totals)
+    scrape_metadata_and_references(out_dir=out_dir, output_format=output_format)
+
+    # 2. Scrape All 6 Datasets across BOTH Lok Sabha AND Rajya Sabha
+    houses = ["lok_sabha", "rajya_sabha"]
+    summary_files = []
     for house in houses:
         for ds_name in DATASETS.keys():
             saved_file = scrape_dataset(
@@ -203,47 +308,57 @@ def scrape_all(houses, state_id=None, output_format="csv", out_dir="data"):
                 output_format=output_format,
                 out_dir=out_dir
             )
-            summary.append(saved_file)
+            summary_files.append(saved_file)
+
+    # 3. Scrape Official Policy Documents & Master Permissible Works Catalog
+    if not skip_docs and state_id is None:
+        scrape_official_documents(out_dir=out_dir)
 
     elapsed = time.time() - start_time
-    print("\n" + "=" * 70)
-    print(f"[✓] All downloads completed in {elapsed:.1f}s!")
-    print("Generated files:")
-    for f in summary:
-        print(f"  • {f}")
-    print("=" * 70)
+    print("\n" + "═" * 80)
+    print(f"[✓] ALL EXTRACTIONS COMPLETED in {elapsed:.1f}s!")
+    print(f"All files saved to: {os.path.abspath(out_dir)}")
+    print("═" * 80)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MPLADS e-SAKSHI Dataset Downloader")
-    parser.add_argument("--all", action="store_true", help="Download ALL datasets across selected house(s)")
-    parser.add_argument("--dataset", choices=list(DATASETS.keys()) + ["all"], default="completed", help="Dataset to extract (or 'all')")
-    parser.add_argument("--house", choices=list(HOUSES.keys()) + ["all"], default="lok_sabha", help="Parliamentary House (or 'all' for both)")
-    parser.add_argument("--state", type=int, default=None, help="State ID (optional, default: all states)")
-    parser.add_argument("--format", choices=["csv", "json"], default="csv", help="Output format")
+    parser = argparse.ArgumentParser(description="MPLADS e-SAKSHI Comprehensive Dataset Harvester")
+    parser.add_argument("--all", action="store_true", help="Download EVERYTHING: Both Lok Sabha & Rajya Sabha, all 6 datasets, districts, and master files")
+    parser.add_argument("--dataset", choices=list(DATASETS.keys()) + ["all"], default="completed", help="Dataset to extract (default: completed)")
+    parser.add_argument("--house", choices=list(HOUSES.keys()) + ["all"], default=None, help="Parliamentary House (default: both if --all, else lok_sabha)")
+    parser.add_argument("--state", type=int, default=None, help="State ID filter (optional, default: all states)")
+    parser.add_argument("--format", choices=["csv", "json"], default="csv", help="Output format (default: csv)")
     parser.add_argument("--out-dir", default="data", help="Output directory to store files (default: 'data')")
+    parser.add_argument("--skip-docs", action="store_true", help="Skip downloading official guidelines and manuals during --all")
     
     args = parser.parse_args()
     
-    # Resolve houses to scrape
-    if args.house == "all":
-        selected_houses = list(HOUSES.keys())
-    else:
-        selected_houses = [args.house]
-
-    # Check if full dump requested
+    # When --all is passed, it means EVERYTHING: Both Lok Sabha AND Rajya Sabha
     if args.all or args.dataset == "all":
-        scrape_all(
-            houses=selected_houses,
+        # If user explicitly overrode house with --house, respect it, otherwise both
+        if args.house and args.house != "all":
+            selected_houses = [args.house]
+            for h in selected_houses:
+                for ds_name in DATASETS.keys():
+                    scrape_dataset(
+                        dataset_name=ds_name,
+                        house_name=h,
+                        state_id=args.state,
+                        output_format=args.format,
+                        out_dir=args.out_dir
+                    )
+        else:
+            scrape_all(
+                state_id=args.state,
+                output_format=args.format,
+                out_dir=args.out_dir,
+                skip_docs=args.skip_docs
+            )
+    else:
+        house = args.house if args.house and args.house != "all" else "lok_sabha"
+        scrape_dataset(
+            dataset_name=args.dataset,
+            house_name=house,
             state_id=args.state,
             output_format=args.format,
             out_dir=args.out_dir
         )
-    else:
-        for h in selected_houses:
-            scrape_dataset(
-                dataset_name=args.dataset,
-                house_name=h,
-                state_id=args.state,
-                output_format=args.format,
-                out_dir=args.out_dir
-            )
