@@ -162,7 +162,7 @@ The datasets form a relational schema interconnected via primary and foreign key
                                                                            [Inspection Photos / PDFs]
 ```
 
-Detailed schema definitions, nullability, and JSON samples are documented in [MPLADS_API_DOCUMENTATION.md: Section 3](scraper/mplads/MPLADS_API_DOCUMENTATION.md#3-core-granular-datasets-gettilesreportdata). Complete empirical join audits and data quality findings are in [PHASE_0_FINAL.md](docs/PHASE_0_FINAL.md).
+Detailed schema definitions, nullability, and JSON samples are documented in [MPLADS_API_DOCUMENTATION.md: Section 3](scraper/mplads/MPLADS_API_DOCUMENTATION.md#3-core-granular-datasets-gettilesreportdata). Complete empirical join audits and data quality findings are in [PHASE_0_DATA_FOUNDATION.md](docs/PHASE_0_DATA_FOUNDATION.md).
 
 ---
 
@@ -176,8 +176,7 @@ Detailed schema definitions, nullability, and JSON samples are documented in [MP
 ├── README.md                               # Project overview and instructions
 ├── docs/
 │   ├── Core.md                             # Core prototype specification & implementation guide
-│   ├── PHASE_0_FINAL.md                    # Canonical Phase 0 empirical data audit document
-│   └── PHASE_0_ANALYTICAL_FOUNDATION.md    # Phase 0 canonical Work definition & analytical model
+│   └── PHASE_0_DATA_FOUNDATION.md          # Canonical Phase 0 data audit & analytical specification
 └── scraper/
 
     └── mplads/
