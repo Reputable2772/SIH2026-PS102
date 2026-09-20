@@ -176,7 +176,8 @@ Detailed schema definitions, nullability, and JSON samples are documented in [MP
 ├── README.md                               # Project overview and instructions
 ├── docs/
 │   ├── Core.md                             # Core prototype specification & implementation guide
-│   └── PHASE_0_FINAL.md                    # Canonical Phase 0 data audit document
+│   ├── PHASE_0_FINAL.md                    # Canonical Phase 0 data audit document
+│   └── PHASE_1_ANALYTICAL_FOUNDATION.md    # Phase 1 canonical Work definition & analytical model
 └── scraper/
 
     └── mplads/
