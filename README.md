@@ -27,26 +27,60 @@ The official e-SAKSHI portal renders data on a dashboard UI that only aggregates
 - **Authentication:** None required (public pre-login REST services).
 - **Format:** `POST` with `Content-Type: application/json; charset=utf-8`.
 - **Double-Serialized JSON:** Tabular reports return JSON strings inside outer response objects that require two-step parsing.
-- **Data Volume:** 81,000+ Sanctioned Works, 109,000+ Recommended Works, 35,000+ Completed Assets, and thousands of vendor disbursement records.
+- **Data Volume:** 101,511 Sanctioned Works, 135,078 Recommended Works, 45,704 Completed Assets, and 111,935 vendor disbursement records (395,871 total rows across 15 datasets).
 
 For complete API specifications, endpoint payloads, query combo parameters, and status codes, see [MPLADS_API_DOCUMENTATION.md](scraper/mplads/MPLADS_API_DOCUMENTATION.md).
 
 ---
 
-## 📊 Datasets Available
+## 📊 Phase 0 Data Architecture: Primary Scrape vs. Supplementary Evidence
 
-| # | Dataset | API Request Key | Scope / Content |
+To ensure the prototype maintains a rigorous boundary between operational pipeline data and external validation benchmarks, Phase 0 sources are frozen into two distinct tiers:
+
+### Tier 1: Primary Input Datasets (First-Party e-SAKSHI Public REST API)
+These form the 395,000+ record empirical core extracted directly from first-party e-SAKSHI endpoints (395,871 total rows across 15 CSV files):
+
+| Dataset | API Key / Endpoint | Records | Scope & Content |
 |---|---|---|---|
-| 1 | **Works Recommended** | `Works Recommended` | Full MP project proposals before administrative vetting |
-| 2 | **Works Sanctioned** | `Works Sanctioned` | Formally approved community works with financial sanction limits |
-| 3 | **Works Completed** | `Works Completed` | Completed assets with handover dates, ratings, and media flags |
-| 4 | **Vendor Expenditure** | `Expenditure on Completed and On-going Works as on Date` | Line-item payment vouchers to contractors/vendors with PFMS status |
-| 5 | **MP Quota Limits** | `Allocated Limit for Hon'ble MPs` | Statutory entitlement balances & allocations per MP |
-| 6 | **Calamity Transfers** | `Amount consented for Calamity` | Voluntary quota donations for national and state disaster relief |
-| 7 | **Geographic Master** | `/getStateData`, `/getDistrictByState` | 36 States, 700+ Districts, Constituencies |
-| 8 | **Policy Documents** | `/get_fileNames`, `/getFileData` | Official guidelines, user manuals, and permissible work catalogs |
+| **Works Recommended** | `Works Recommended` | 135,078 | Complete itemized project proposals from Lok Sabha & Rajya Sabha MPs |
+| **Works Sanctioned** | `Works Sanctioned` | 101,511 | Formally approved works with administrative and financial sanction |
+| **Works Completed** | `Works Completed` | 45,704 | Completed physical community assets with handover sign-offs |
+| **Vendor Expenditure** | `Expenditure on Completed...` | 111,935 | Line-item payment vouchers disbursed to contractors and executing agencies |
+| **MP Quota Limits** | `Allocated Limit for Hon'ble MPs`| 775 | Statutory entitlement balances & allocations per MP |
+| **Calamity Transfers** | `Amount consented for Calamity` | 32 | Quota surrendered by MPs for disaster relief |
+| **Geographic Master** | `/getStateData`, `/getDistrictByState` | 36 States, 796 Dists | Administrative translation tables |
+| **Tenure Master** | `/getTenureData` | 4 Tenures | Parliamentary term codes |
 
----
+### Tier 2: Supplementary Validation Evidence (Benchmarks & Audit Typologies)
+These sources provide external validation benchmarks, statutory operational thresholds, and ground-truth audit typologies without adding complex, un-joinable schemas into the primary pipeline:
+
+| Validation Source | Provenance & Document | Role in Prototype |
+|---|---|---|
+| **MoSPI Annual Reports** | MoSPI Annual Report 2023–24 | Scheme-level historical sanity checks (validating scraped aggregates against official published totals) |
+| **Parliamentary Q&A Annexures** | Lok Sabha Unstarred Question AU4517 | External official benchmarks for state/year-wise allocation, release, utilization, and average sanction turnaround |
+| **Parliamentary e-SAKSHI Monitoring Framework** | 18th Lok Sabha Standing Committee on Finance (Report 35) | Defines official operational delay criteria: **>45 days pending sanction**, **>1 year incomplete after sanction**, **>3 months without payment** |
+| **Parliamentary Impact & Evaluation Material** | Lok Sabha Question AU3350 Annexure | 216-district evaluation covering 2014–2019 that informed the 2023 revised guidelines |
+| **CAG Performance Audits on MPLADS** | CAG Union Performance Audit (Report 31 of 2010, Chapter 4) | Ground-truth audit validation corpus documenting real-world ghost assets, post-completion disbursements, and procurement irregularities |
+| **Scheme Guidelines & Circulars** | MPLADS Guidelines w.e.f. 1 April 2023 & Annexure-VIII | Official permissible work catalog, tender ceilings, and administrative SOPs |
+
+### Setup for Supplementary Validation Files:
+Supplementary validation documents are stored locally under `data/validation_evidence/` and `data/official_documents/`:
+```bash
+# MoSPI Annual Report 2023-24 (18 MB)
+curl -k -s -L "https://mospi.gov.in/sites/default/files/publication_reports/AnnualReport_2023-24.pdf" \
+  -o "data/validation_evidence/mospi_annual_report_2023_24.pdf"
+
+# CAG Performance Audit on MPLADS Works (2.6 MB)
+curl -k -s -L "https://cag.gov.in/webroot/uploads/download_audit_report/2010/Union_Performance_Local_area_Development_Scheme_31_2010_chapter_4.pdf" \
+  -o "data/validation_evidence/cag_mplads_audit_ch4.pdf"
+```
+
+### Public Work-Level Endpoint Investigation:
+An exhaustive probe of e-SAKSHI routes confirmed the following work-level endpoints:
+- **Attachment List:** `POST /rest/PreLoginDashboardData/getAttachIdsbyFlag` with `{"json": {"FLAG": 3, "WORK_ID": <ID>}}` returns file names and composite attachment IDs (e.g. `1836498.1905867`).
+- **Attachment Content:** `POST /rest/PreLoginCitizenWorkRcmdRest/getAttachmentById` with `{"id": "<ATTACH_ID>"}` returns complete base64-encoded PDF completion certificates and JPEG inspection photos without authentication.
+- **Citizen Reviews:** `POST /rest/PreLoginCitizenWorkRcmdRest/getReviewDetailsByWork` returns public star ratings and reviews.
+- **Unavailable / Private Endpoints:** Candidate routes for raw GIS coordinates (`/getGisData`) and interim progress tracking (`/getWorkDetails`, `/getWorkProgress`) return `404 Not Found`; they are not publicly exposed outside privileged authenticated sessions.
 
 ## ⚡ Environment Setup with Nix
 
@@ -128,7 +162,7 @@ The datasets form a relational schema interconnected via primary and foreign key
                                                                            [Inspection Photos / PDFs]
 ```
 
-Detailed schema definitions, nullability, and JSON samples are documented in [MPLADS_API_DOCUMENTATION.md: Section 3](scraper/mplads/MPLADS_API_DOCUMENTATION.md#3-core-granular-datasets-gettilesreportdata).
+Detailed schema definitions, nullability, and JSON samples are documented in [MPLADS_API_DOCUMENTATION.md: Section 3](scraper/mplads/MPLADS_API_DOCUMENTATION.md#3-core-granular-datasets-gettilesreportdata). Complete empirical join audits and data quality findings are in [PHASE_0_FINAL.md](docs/PHASE_0_FINAL.md).
 
 ---
 
@@ -140,7 +174,11 @@ Detailed schema definitions, nullability, and JSON samples are documented in [MP
 ├── flake.nix                               # Nix flake definition (Python, devShell, packages)
 ├── flake.lock                              # Nix flake lockfile
 ├── README.md                               # Project overview and instructions
+├── docs/
+│   ├── Core.md                             # Core prototype specification & implementation guide
+│   └── PHASE_0_FINAL.md                    # Canonical Phase 0 data audit document
 └── scraper/
+
     └── mplads/
         ├── mplads_scraper.py               # Robust CLI bulk scraper with retry and multi-house support
         └── MPLADS_API_DOCUMENTATION.md     # Exhaustive REST API specification & data dictionaries
