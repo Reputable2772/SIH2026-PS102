@@ -1,0 +1,18 @@
+# Direnv & Nix build artifacts
+.direnv/
+result
+result-*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# Scraped raw data & attachments
+*.csv
+*.json
+!*.lock
+attachments/
+data/
