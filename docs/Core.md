@@ -297,121 +297,87 @@ The prototype must process its demonstration dataset without impractical delays.
 
 ## Implementation Plan
 
-### Phase 0 — Data Audit
+### Phase 0 — Data Foundation & Analytical Model
 
-**Goal:** Determine what can actually be built.
+**Goal:** Establish what can actually be built and create the unified analytical foundation.
 
-* obtain representative MPLADS/eSAKSHI datasets;
-* inventory fields and identifiers;
-* establish coverage and relationships;
-* identify missing information;
-* determine feasible detectors.
+* Obtain and audit representative MPLADS/eSAKSHI datasets.
+* Inventory fields, identifiers, coverage and relationships.
+* Identify missing/incomplete information and feasible detectors.
+* Normalize records, including dates, financial values, identifiers, duplicates and aggregates.
+* Define the canonical **Work** representation.
+* Reconstruct the available work lifecycle.
+* Establish MP, work, Implementing Agency, vendor and payment relationships.
+* Implement explicit data-quality and missing-data handling.
 
-**Deliverable:** Data Map + Coverage Matrix.
+**Deliverable:** Unified analytical dataset + Data Map + Coverage Matrix.
 
-### Phase 1 — Analytical Foundation
+---
 
-* normalize records;
-* define canonical Work representation;
-* reconstruct lifecycle;
-* establish entity relationships;
-* implement data-quality handling.
+### Phase 1 — Baselines & Core Detection
 
-**Deliverable:** Unified analytical dataset.
+**Goal:** Establish comparison baselines and implement the primary anomaly detectors.
 
-### Phase 2 — Baselines
+* Encode relevant MPLADS/process rules as configurable policy baselines.
+* Establish appropriate peer groups.
+* Calculate historical/behavioural baselines where coverage permits.
+* Define minimum sample requirements.
+* Implement:
 
-* encode relevant MPLADS rules;
-* establish peer groups;
-* calculate historical/behavioural baselines;
-* define minimum sample requirements.
+  1. Compliance detection
+  2. Financial anomaly detection
+  3. Execution/timeline anomaly detection
+* Each detector produces:
+  **Finding + Severity + Evidence + Explanation**.
 
-**Deliverable:** Baseline specification.
+**Deliverable:** Baseline specification + independent core detector outputs.
 
-### Phase 3 — Core Detection
+---
 
-Implement:
+### Phase 2 — Cross-Work, Entity & Pattern Intelligence
 
-1. Compliance
-2. Financial
-3. Execution / timeline
+**Goal:** Detect signals that require relationships across works, entities or time.
 
-Each produces:
+* Implement similarity / duplicate-work detection.
+* Implement vendor / Implementing Agency relationship and concentration analysis.
+* Identify recurrence of entities across anomalous works.
+* Implement aggregate trend analysis covering:
 
-**Finding + Severity + Evidence + Explanation**
+  * anomaly rates;
+  * costs;
+  * delays;
+  * expenditure;
+  * recurring entity patterns.
+* Add unsupervised multivariate anomaly detection as a **supporting signal**.
 
-**Deliverable:** Independent detector outputs.
+**Deliverable:** Cross-record findings + trend findings + multivariate anomaly output.
 
-### Phase 4 — Cross-Work Intelligence
+---
 
-Add:
+### Phase 3 — Risk, Explainability & Validation
 
-4. Similarity / duplicate detection
-5. Relationship / concentration analysis
+**Goal:** Convert detector outputs into stable, reviewable and validated priorities.
 
-**Deliverable:** Cross-record findings.
+* Establish configurable component scores, detector weights and risk levels.
+* Incorporate confidence and data-quality handling.
+* Combine detector outputs into unified review priorities.
+* Ensure every significant finding answers:
+  **What happened? Why is it unusual? Compared with what? What evidence supports it? What are the limitations?**
+* Validate against:
 
-### Phase 5 — Trend Intelligence
+  * normal works;
+  * cost anomalies;
+  * timeline anomalies;
+  * duplicate-like works;
+  * payment anomalies;
+  * relationship anomalies;
+  * multi-signal cases;
+  * ambiguous/legitimate exceptions.
+* Test controlled anomaly injection.
+* Document data limitations and detector behaviour.
+* Freeze the core once risk aggregation is stable, outputs are explainable, validation passes and demonstration scenarios work end-to-end.
 
-Analyse:
-
-* changing anomaly rates;
-* changing costs;
-* changing delays;
-* changing expenditure;
-* recurring entity patterns.
-
-**Deliverable:** Trend findings.
-
-### Phase 6 — Multivariate Analysis
-
-Add unsupervised anomaly detection as a supporting signal.
-
-**Deliverable:** Multivariate anomaly output.
-
-### Phase 7 — Risk Engine
-
-Establish:
-
-* component scores;
-* initial weights;
-* risk levels;
-* confidence/data-quality handling.
-
-**Deliverable:** Unified review-priority output.
-
-### Phase 8 — Explainability
-
-Ensure every significant finding answers:
-
-**What happened? Why is it unusual? Compared with what? What evidence supports it? What are the limitations?**
-
-**Deliverable:** Evidence-backed findings.
-
-### Phase 9 — Validation
-
-Test:
-
-* normal works;
-* cost anomalies;
-* timeline anomalies;
-* duplicate-like works;
-* payment anomalies;
-* relationship anomalies;
-* multi-signal cases;
-* ambiguous/legitimate exceptions.
-
-**Deliverable:** Validation report.
-
-### Phase 10 — Core Freeze
-
-Freeze the core once:
-
-* data limitations are documented;
-* detector behaviour is validated;
-* risk aggregation is stable;
-* outputs are explainable;
-* demonstration scenarios work end-to-end.
+**Deliverable:** Validated, explainable, configurable MPLADS review-prioritization engine.
 
 ---
 

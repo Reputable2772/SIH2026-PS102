@@ -1,8 +1,9 @@
 # Phase 0 — Data Audit & Research Specification
 **MPLADS Intelligence Engine (SIH PS102)**  
 **Snapshot Designation:** `MPLADS/eSAKSHI — 2026-09-21 snapshot`  
-**Status:** Frozen, Empirically Reconciled & Approved for Phase 1 Transition  
-**Document Version:** 1.3.0 (Authoritative Formal Record)
+**Phase Mapping:** Phase 0 — Part 1 (Empirical Data Audit & Research Specification)  
+**Status:** Frozen & Empirically Reconciled (Aligned with 4-Phase Architecture)  
+**Document Version:** 1.4.0 (Authoritative Formal Record)
 
 ---
 
@@ -182,8 +183,8 @@ This section documents every field present in the raw first-party datasets, esta
 | `TENURE` | `str` | 0 (0.00%) | `18th Lok Sabha`, `Sitting MP`, `Nominated` | Legislative Term | Parliamentary term or seat status. |
 | `TENURE_START_DATE` | `str` (Timestamp) | 0 (0.00%) | `Jun 4, 2024 12:00:00 AM` | Temporal Bound | Official commencement timestamp of MP's parliamentary tenure. |
 | `TENURE_END_DATE` | `str` (Timestamp) | 0 (0.00%) | `Jun 3, 2029 11:59:59 PM` | Temporal Bound | Scheduled expiration timestamp of MP's parliamentary tenure. |
-| `FILE_STATUS` | `object` (`bool`) | LS Rec: 83,153 (76.00%), LS Sanc: 55,207 (67.77%) | `True`, `NaN` | Compliance Flag | Indicates whether supporting scanned documentary PDFs are uploaded on the portal. |
-| `ATTACH_ID` | `float64` | LS Rec: 83,153 (76.00%), LS Sanc: 55,207 (67.77%) | `1864291.0`, `2183894.0` | Secondary Foreign Key | Internal group pointer to retrieve uploaded attachments via `/getAttachIdsbyFlag`. |
+| `FILE_STATUS` | `object` (`bool`) | LS Rec: 83,153 (76.00%), LS Sanc: 55,207 (67.77%) | `True`, `NaN` | Compliance Flag | Indicates whether an attachment or document record is associated on the portal. |
+| `ATTACH_ID` | `float64` | LS Rec: 83,153 (76.00%), LS Sanc: 55,207 (67.77%) | `1864291.0`, `2183894.0` | Secondary Foreign Key | Internal group pointer to retrieve associated attachments via `/getAttachIdsbyFlag`. |
 
 ---
 
@@ -198,8 +199,8 @@ This section documents every field present in the raw first-party datasets, esta
 | `ACTUAL_END_DATE` | `str` (Date) | 0 (0.00%) | `09-Dec-2025`, `07-May-2025` | **Temporal Benchmark** | Date of physical completion recorded on the portal. Format: `DD-Mon-YYYY`. |
 | `AVERAGE_RATING` | `float64` | 0 (0.00%) | `0.0`, `5.0` | Citizen Metric | Public citizen feedback rating score (0.0 to 5.0). 99.9% of completed assets are unrated (`0.0`). |
 | `FLAG` | `int64` | 0 (0.00%) | `3` | Milestone Flag | Fixed at `3`, designating the asset physical completion and handover milestone. |
-| `ATTACH_ID` | `float64` | LS: 9,302 (26.16%), RS: 3,458 (34.09%) | `1836498.0`, `1355528.0` | Secondary Foreign Key | Attachment group pointer for completion certificates and geo-tagged inspection photos. |
-| `FILE_STATUS` | `object` (`bool`) | LS: 9,302 (26.16%), RS: 3,458 (34.09%) | `True`, `NaN` | Compliance Flag | Indicates whether physical completion certificates are uploaded on the portal. |
+| `ATTACH_ID` | `float64` | LS: 9,302 (26.16%), RS: 3,458 (34.09%) | `1836498.0`, `1355528.0` | Secondary Foreign Key | Attachment group pointer associated with the completion record. |
+| `FILE_STATUS` | `object` (`bool`) | LS: 9,302 (26.16%), RS: 3,458 (34.09%) | `True`, `NaN` | Compliance Flag | Indicates whether an attachment or document record is associated with the completion record on the portal. |
 | *Inherited Fields* | — | 0 (0.00%) | — | Multi-Dimensional | `Sno`, `LETTER_NO`, `ACTIVITY_NAME`, `WORK_CATEGORY`, `WORK_DESCRIPTION`, `STATE_NAME`, `CONSTITUENCY_ID`, `CONSTITUENCY`, `IDA_NAME`, `MP_NAME` retain identical semantics. |
 
 ---
@@ -282,7 +283,8 @@ In `mplads_rajya_sabha_recommended.csv`, exactly 46 values of `WORK_RECOMMENDATI
 ```text
                            ┌───────────────────────────┐
                            │        MP / TENURE        │
-                           │   Canonical Key: K_MP     │
+                           │  Sponsoring MP Reference  │
+                           │ (House, MP_Name, Tenure)  │
                            └─────────────┬─────────────┘
                                          │
                  ┌───────────────────────┼───────────────────────┐
@@ -324,13 +326,17 @@ In `mplads_rajya_sabha_recommended.csv`, exactly 46 values of `WORK_RECOMMENDATI
 | Target Join Relationship | Left Dataset | Right Dataset | Operational Join Key | Cardinality | Empirical Match % (Left $\rightarrow$ Right) | Join Integrity Finding |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Recommendation $\rightarrow$ Sanction** | Recommended | Sanctioned | `(HOUSE_OF_PARLIAMENT, WORK_RECOMMENDATION_DTL_ID, LETTER_NO)` | $1 \rightarrow 1$ | 74.70% $\rightarrow$ **99.39%** | 100,896 matched works; 33,567 pending; 615 orphan sanctions. 0 cross-house collisions. |
-| **Sanction $\rightarrow$ Completion** | Sanctioned | Completed | `(HOUSE_OF_PARLIAMENT, WORK_RECOMMENDATION_DTL_ID, LETTER_NO)` | $1 \rightarrow 1$ | 45.02% $\rightarrow$ **100.00%** | 45,704 completed assets; 55,807 active pipeline. **Zero orphan completions**. |
-| **Sanction $\rightarrow$ Expenditure** | Sanctioned | Expenditures | `(HOUSE_OF_PARLIAMENT, WORK_RECOMMENDATION_DTL_ID)` | $1 \rightarrow \text{Many}$ | 72.35% $\rightarrow$ **100.00%** | 73,448 sanctioned works have disbursements; 28,063 unspent. **Zero orphan payments**. |
+| **Sanction $\rightarrow$ Completion** | Sanctioned | Completed | `(HOUSE_OF_PARLIAMENT, WORK_RECOMMENDATION_DTL_ID, LETTER_NO)` | $1 \rightarrow 1$ | 45.02% $\rightarrow$ **100.00%** | 45,704 completed assets; 55,807 sanctioned works without an observed completion record. **Zero orphan completions**. |
+| **Sanction $\rightarrow$ Expenditure** | Sanctioned | Expenditures | `(HOUSE_OF_PARLIAMENT, WORK_RECOMMENDATION_DTL_ID)` | $1 \rightarrow \text{Many}$ | 72.35% $\rightarrow$ **100.00%** | 73,448 sanctioned works have disbursements; 28,063 have no observed expenditure in snapshot. **Zero orphan payments**. |
 | **Completion $\rightarrow$ Expenditure** | Completed | Expenditures | `(HOUSE_OF_PARLIAMENT, WORK_RECOMMENDATION_DTL_ID)` | $1 \rightarrow \text{Many}$ | **99.78%** $\rightarrow$ 61.34% | 45,605 completed assets have expenditure records; 99 completed lack payment records. |
 | **Completion $\rightarrow$ Expenditure (via WORK_ID)** | Completed | Expenditures | `WORK_ID` | N/A | **0.00%** $\rightarrow$ **0.00%** | **Incompatible datatypes** (integer sequence vs formatted string). Must NOT be used. |
 | **Expenditure $\rightarrow$ Vendor** | Expenditures | Commercial Vendors | `VENDOR_ID` | $\text{Many} \rightarrow 1$ | **100.00%** $\rightarrow$ **100.00%** | 30,839 unique vendors mapped across 111,935 transactions. 0% nulls. |
 | **Expenditure $\rightarrow$ IA** | Expenditures | Implementing Agencies | `IA_NAME` | $\text{Many} \rightarrow 1$ | **100.00%** $\rightarrow$ **100.00%** | 7,378 distinct executing agencies mapped. Only populated on works with payments. |
-| **MP $\rightarrow$ Allocations** | Recommendations | Allocations | Composite MP Key $\mathbf{K}_{\text{MP}}$ | $\text{Many} \rightarrow 1$ | **100.00%** $\rightarrow$ 95.10% | 538 LS MPs and 199 RS MPs matched. 5 LS MPs and 33 RS MPs have 0 recommendations. |
+| **MP $\rightarrow$ Allocations** | Recommendations | Allocations | Descriptive tuple: `(HOUSE_OF_PARLIAMENT, MP_NAME, TENURE)` | $\text{Many} \rightarrow 1$ | **100.00%** $\rightarrow$ 95.10% | 737 MPs matched (538 LS, 199 RS). 38 MPs in allocation ledger have 0 recommendations (5 LS, 33 RS). Formal analytical surrogate key definition deferred to Part 2. |
+
+> [!NOTE]
+> **MP Identity Specification Note:** The raw e-SAKSHI schema does not provide a system-wide unique MP primary key. MPs are referenced across datasets via descriptive text fields: `(HOUSE_OF_PARLIAMENT, MP_NAME, TENURE)`. A natural text match successfully reconciles 737 MPs (95.10%) against allocation ledgers. Phase 0 treats this as an empirical descriptive link; formal analytical surrogate key derivation and normalization semantics are defined in Part 2 (`docs/PHASE_0_ANALYTICAL_FOUNDATION.md`).
+
 
 ---
 
@@ -355,7 +361,7 @@ In `mplads_rajya_sabha_recommended.csv`, exactly 46 values of `WORK_RECOMMENDATI
 - **Work Descriptions:**
   - `WORK_DESCRIPTION`: 114 nulls in LS Rec (0.10%), 97 in LS Sanc (0.12%), 79 in LS Compl (0.22%), 7 in RS Compl (0.07%).
 - **Documentary Attachments:**
-  - `ATTACH_ID` / `FILE_STATUS`: 67.77% null in LS Sanctioned, 26.16% null in LS Completed. Indicates whether inspection certificates or completion photos were digitized.
+  - `ATTACH_ID` / `FILE_STATUS`: 67.77% null in LS Sanctioned, 26.16% null in LS Completed. Indicates whether an attachment or document record is associated with the work on the portal. (Note: this reflects an attachment-presence signal on the record, not verified compliance with specific completion certificate types without payload inspection).
 
 ### 7.3 Temporal Sequencing & Integrity
 - **The "177 Inverted Dates" Anomaly Solved:**
@@ -413,10 +419,10 @@ In `mplads_rajya_sabha_recommended.csv`, exactly 46 values of `WORK_RECOMMENDATI
 | **Recommendation Analysis** | `RECOMMENDATION_DATE`, `RECOMMENDED_AMOUNT`, `WORK_CATEGORY`, `WORK_DESCRIPTION`, `MP_NAME`, `CONSTITUENCY` | 100% available across all recommendations. | **135,078 works (100.0%)** | 114 null descriptions (0.1%). Textual descriptions vary from terse titles to detailed specs. |
 | **Sanction Analysis** | `SANCTION_DATE`, `SANCTION_AMOUNT`, `IDA_NAME`, `WORK_STAGE`, `FLAG` | 100% available in Sanctioned datasets. | **101,511 works (75.15% of recs)** | 615 orphan sanctions lack recommendation history. |
 | **Sanction-Delay Detection** | `RECOMMENDATION_DATE`, `SANCTION_DATE` | 100% available on matched pairs. | **100,896 works (99.39% of sanctions)** | Evaluated against official 45-day statutory limit. 0 inverted dates. |
-| **Completion-Delay Detection** | `SANCTION_DATE`, `ACTUAL_END_DATE`, `WORK_STATUS` | 100% available on completed works. | **45,704 works (45.02% of sanctions)** | Evaluated against official 1-year monitoring threshold. 55,807 active incomplete works. |
-| **Cost Anomaly Detection** | `RECOMMENDED_AMOUNT`, `SANCTION_AMOUNT`, `ACTUAL_AMOUNT` | Available across completed works with sanctions. | **45,704 works (100.0% of completed)** | 97 zero-cost completions must be treated as edge cases in variance ratios. |
-| **Expenditure / Utilization** | `FUND_DISBURSED_AMT`, `EXPENDITURE_DATE`, `WORK_RECOMMENDATION_DTL_ID` | Available across all expenditure rows. | **73,448 sanctioned works (72.35%)** | 28,063 sanctioned works have ₹0.00 disbursement. |
-| **Payment Timing Analysis** | `SANCTION_DATE`, `EXPENDITURE_DATE`, `FUND_DISBURSED_AMT` | Available across all expenditure rows. | **111,935 payment vouchers (100.0%)** | Supports detection of dormant sanctions (>3 months zero disbursement). |
+| **Completion-Delay Detection** | `SANCTION_DATE`, `ACTUAL_END_DATE`, `WORK_STATUS` | 100% available on completed works. | **45,704 completed works (45.02% of sanctions)** | Evaluated against official 1-year monitoring threshold. 55,807 sanctioned works have no observed completion record (delay evaluation must be conditioned on sanction age). |
+| **Cost Anomaly Detection** | `RECOMMENDED_AMOUNT`, `SANCTION_AMOUNT`, `ACTUAL_AMOUNT` | Available across matched stages; disaggregated by comparison scope. | **Disaggregated by comparison:**<br>• Rec $\rightarrow$ Sanc drift: **100,896 works**<br>• Actual $\rightarrow$ Sanc drift: **45,704 completed works**<br>• Full 3-stage (Rec $\rightarrow$ Sanc $\rightarrow$ Actual): **45,497 works** | 207 completed works are orphan sanctions lacking recommendation amounts. 97 zero-cost completions must be handled as edge cases in variance ratios. |
+| **Expenditure / Utilization** | `FUND_DISBURSED_AMT`, `EXPENDITURE_DATE`, `WORK_RECOMMENDATION_DTL_ID` | Available across all expenditure rows. | **73,448 sanctioned works (72.35%)** | 28,063 sanctioned works have no observed expenditure in snapshot. |
+| **Payment Timing Analysis** | `SANCTION_DATE`, `EXPENDITURE_DATE`, `FUND_DISBURSED_AMT` | Available across all expenditure rows and unspent sanctions. | **101,511 sanctioned works** | Evaluates payment inception timing: 16,694 works are sanctioned $\ge 3$ months with no payment (dormant); 11,369 works are sanctioned $< 3$ months with no payment (not yet eligible for dormancy evaluation). |
 | **Vendor Concentration** | `VENDOR_ID`, `VENDOR_NAME`, `IDA_NAME`, `FUND_DISBURSED_AMT` | 100% complete in Expenditures (0% nulls). | **111,935 vouchers across 30,839 vendors** | Concentration indicates contract volume dominance, NOT proof of collusion or cartelization. |
 | **Implementing Agency Analysis** | `IA_NAME`, `IDA_NAME`, `FUND_DISBURSED_AMT` | 100% complete in Expenditures. | **73,448 works across 7,378 IAs** | `IA_NAME` is absent on works that have not yet reached the expenditure stage. |
 | **Duplicate / Similar Work Detection**| `WORK_DESCRIPTION`, `RECOMMENDED_AMOUNT`, `IDA_NAME`, `CONSTITUENCY` | Descriptions available on 99.9% of works. | **135,078 recommendations** | High textual similarity indicates templated descriptions or standard rollouts, NOT proof of duplicate billing. |
@@ -441,24 +447,25 @@ The analytical anomaly detectors specified in the project architecture (`docs/Co
 
 ### 9.1 GREEN — Directly Supported Detectors
 
-| Detector ID | Detector Title | Supporting Observed Fields | Baseline / Logic | Empirical Coverage & Feasibility Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **D1** | **Statutory Sanction Delay Detector** | `RECOMMENDATION_DATE`, `SANCTION_DATE` | Evaluates delay against the statutory 45-day decision window (Para 3.12, MPLADS 2023 Guidelines; Lok Sabha Question *44). | **100,896 matched works (99.39% of sanctions).** 0 inverted dates. |
-| **D2** | **Completion Timeline & Stagnation Detector** | `SANCTION_DATE`, `ACTUAL_END_DATE`, `WORK_STATUS` | Evaluates completion duration against official 1-year monitoring threshold (Standing Committee Report 35). | **45,704 completed works; 55,807 active incomplete works.** |
-| **D3** | **Fund Dormancy / Payment Inactivity Detector**| `SANCTION_DATE`, `EXPENDITURE_DATE`, `FUND_DISBURSED_AMT` | Evaluates payment inception against the official eSAKSHI monitoring threshold: no payment within 3 months of sanction. | **73,448 paid works; 28,063 dormant sanctioned works.** |
-| **D4** | **Vendor Concentration Profiler** | `VENDOR_ID`, `VENDOR_NAME`, `IDA_NAME`, `FUND_DISBURSED_AMT` | Computes statistical market concentration (HHI) and volume dominance within district/agency. *(Specific thresholds belong to Phase 2)*. | **111,935 transactions; 30,839 vendor IDs (0% nulls).** Strictly measures market share. |
-| **D5** | **Textual Recommendation Repetition Detector**| `WORK_DESCRIPTION`, `RECOMMENDED_AMOUNT`, `IDA_NAME` | Identifies high-frequency identical or near-identical proposals via TF-IDF / Levenshtein clustering. | **135,078 recommendations (99.9% complete descriptions).** Strictly measures text clustering. |
-| **D6** | **Cost Estimation & Sanction Drift Profiler** | `RECOMMENDED_AMOUNT`, `SANCTION_AMOUNT`, `ACTUAL_AMOUNT` | Evaluates variance ratios $\frac{\text{Sanction}}{\text{Recommend}}$ and $\frac{\text{Actual}}{\text{Sanction}}$ for statistical outlier behavior. | **100,896 recommendation-sanction pairs; 45,704 completion pairs.** |
-| **D8** | **High-Frequency Recommendation Bursts** | `RECOMMENDATION_DATE`, `LETTER_NO`, `MP_NAME` | Feasible to analyze temporal submission patterns and sudden proposal clustering at fiscal year-end. *(Cutoffs belong to Phase 2)*. | **135,078 recommendations (100% valid dates).** |
-| **D9** | **Unsanctioned Recommendation Dormancy** | `RECOMMENDATION_DATE`, `WORK_STAGE` | Evaluates recommendations lacking administrative sanction beyond administrative review windows. | **33,567 pending recommendation records.** |
+| Detector ID | Detector Title | Target Phase | Supporting Observed Fields | Baseline / Logic | Empirical Coverage & Feasibility Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **D1** | **Statutory Sanction Delay Detector** | **Phase 1** (Compliance) | `RECOMMENDATION_DATE`, `SANCTION_DATE` | Evaluates delay against the statutory 45-day decision window (Para 3.12, MPLADS 2023 Guidelines; Lok Sabha Question *44). | **100,896 matched works (99.39% of sanctions).** 0 inverted dates. |
+| **D2** | **Completion Timeline & Stagnation Detector** | **Phase 1** (Execution) | `SANCTION_DATE`, `ACTUAL_END_DATE`, `WORK_STATUS` | Evaluates completion duration against official 1-year monitoring threshold (Standing Committee Report 35). | **45,704 completed works; 55,807 sanctioned works without an observed completion record (evaluated by sanction age).** |
+| **D3** | **Fund Dormancy / Payment Inactivity Detector**| **Phase 1** (Compliance) | `SANCTION_DATE`, `EXPENDITURE_DATE`, `FUND_DISBURSED_AMT` | Evaluates payment inception against the official eSAKSHI monitoring threshold: no payment within 3 months of sanction (conditioned on sanction age at snapshot). | **16,694 dormant works (sanctioned $\ge 3$ months with no payment); 11,369 unspent works sanctioned $< 3$ months are not yet eligible.** (Total unspent: 28,063; paid: 73,448). |
+| **D4** | **Vendor Concentration Profiler** | **Phase 2** (Relationships) | `VENDOR_ID`, `VENDOR_NAME`, `IDA_NAME`, `FUND_DISBURSED_AMT` | Computes statistical market concentration (HHI) and volume dominance within district/agency. *(Threshold calibration belongs to Phase 2)*. | **111,935 transactions; 30,839 vendor IDs (0% nulls).** Strictly measures market share. |
+| **D5** | **Textual Recommendation Repetition Detector**| **Phase 2** (Similarity) | `WORK_DESCRIPTION`, `RECOMMENDED_AMOUNT`, `IDA_NAME` | Identifies high-frequency identical or near-identical proposals via TF-IDF / Levenshtein clustering. | **135,078 recommendations (99.9% complete descriptions).** Strictly measures text clustering. |
+| **D6** | **Cost Estimation & Sanction Drift Profiler** | **Phase 1** (Financial) | `RECOMMENDED_AMOUNT`, `SANCTION_AMOUNT`, `ACTUAL_AMOUNT` | Evaluates variance ratios $\frac{\text{Sanction}}{\text{Recommend}}$ and $\frac{\text{Actual}}{\text{Sanction}}$ for statistical outlier behavior. | **Coverage disaggregated by scope:** 100,896 rec $\rightarrow$ sanction pairs; 45,704 sanction $\rightarrow$ actual pairs; 45,497 full 3-stage comparisons (207 completions lack recommendation data). |
+| **D8** | **High-Frequency Recommendation Bursts** | **Phase 2** (Trends) | `RECOMMENDATION_DATE`, `LETTER_NO`, `MP_NAME` | Feasible to analyze temporal submission patterns and sudden proposal clustering at fiscal year-end. *(Temporal trend cutoffs belong to Phase 2)*. | **135,078 recommendations (100% valid dates).** |
+| **D9** | **Unsanctioned Recommendation Dormancy** | **Phase 1** (Compliance) | `RECOMMENDATION_DATE`, `WORK_STAGE` | Evaluates recommendations lacking administrative sanction beyond administrative review windows. | **33,567 pending recommendation records.** |
 
 ### 9.2 YELLOW — Materially Limited Detectors
 
 | Detector ID | Detector Title | Observed Schema Constraint | Feasible Implementation Strategy |
 | :--- | :--- | :--- | :--- |
-| **D10** | **Milestone-Based Physical Progress Tracking** | e-SAKSHI does not publish intermediate physical progress percentages (e.g. 25%, 50%, 75%) or milestone dates. | **Limited to binary lifecycle states:** Sanctioned vs Completed. Progress pacing cannot be inferred. |
+| **D10** | **Intermediate Physical Progress Tracking** | e-SAKSHI provides administrative milestone labels (`Pending for Sanction`, `Sanction`, `Vendor Identification`) but does not publish quantitative intermediate physical progress measurements (e.g., % completion, civil construction milestone dates). | **Constrained by absence of quantitative physical progress:** Administrative stages are observed, but physical execution pacing cannot be measured quantitatively between sanction and completion. |
 | **D11** | **Geospatial Site Clustering** | The public API does not expose GPS latitude/longitude coordinates (`/getGisData` returns 404). | **Limited to macro-administrative clustering:** District Magistrate jurisdiction (`IDA_NAME`) and Parliamentary Constituency. Pinpoint GIS site verification is unsupported. |
-| **D12** | **Documentary & Inspection Photo Verification** | Completion certificate PDFs and inspection JPEG photos exist as base64 blobs via secondary API endpoints (`/getAttachmentById`). | **Limited to attachment availability indexing:** Prototype flags presence/absence of certificate (`ATTACH_ID` populated); OCR/computer vision is deferred. |
+| **D12** | **Documentary Attachment Association Profiler** | Document attachments exist as binary/base64 payloads via secondary API endpoints (`/getAttachmentById`), but document types are not distinguished in primary tabular metadata. | **Limited to attachment-presence indexing:** Prototype flags presence or absence of an associated attachment record (`ATTACH_ID` / `FILE_STATUS` populated). Does NOT establish certificate compliance without document payload inspection. |
+
 
 ### 9.3 RED — Infeasible & Excluded Capabilities
 
@@ -500,7 +507,7 @@ The prototype relies on external statutory documents and audit reports exclusive
 3. **Parliamentary Q&A Annexures (Lok Sabha Starred Question No. *44 of 22-Jul-2026):**
    - Establishes official e-SAKSHI administrative monitoring benchmarks: sanctions pending > 45 days, works incomplete > 1 year after sanction, and works with no payment within three months of sanction constitute official monitoring criteria under ministerial review.
 4. **Comptroller and Auditor General (CAG) Performance Audit (Report No. 31 of 2010-11, Chapter 4):**
-   - Serves as empirical validation for anomaly archetypes, confirming that administrative delays, unspent balances, repeat vendor contracts, and lack of inspection certificates represent historical systemic vulnerabilities.
+   - Serves as empirical validation for anomaly archetypes, confirming that administrative delays, unspent balances, repeat vendor contracts, and missing documentary attachments represent historical systemic vulnerabilities.
 
 ---
 
@@ -508,8 +515,8 @@ The prototype relies on external statutory documents and audit reports exclusive
 
 The prototype development must account for five structural limitations inherent to the raw administrative source data:
 
-1. **Absence of Intermediate Construction Progress:**
-   The public portal captures only two temporal milestones: Sanction Date and Completion Date. Intermediate progress percentages (e.g. 25%, 50%, 75%) and physical inspection milestones are not exposed.
+1. **Absence of Quantitative Physical Progress Measurements:**
+   While e-SAKSHI records administrative workflow milestones (`WORK_STAGE` states such as *Pending for Sanction*, *Sanction*, *Vendor Identification*), it does not publish quantitative physical completion percentages (e.g., 25%, 50%, 75%) or physical milestone inspection dates. Execution pacing cannot be measured quantitatively between sanction and completion.
 2. **Absence of GIS / GPS Spatial Coordinates:**
    The portal provides administrative geography (District, Constituency, Implementing Agency) but does not expose raw latitude/longitude points or polygon boundaries. Geospatial risk scoring must remain aggregate at the District / Constituency level.
 3. **Pre-eSAKSHI Historical Truncation:**
@@ -535,7 +542,7 @@ The prototype can confidently demonstrate:
 
 ### 12.2 Supported with Limitations
 The prototype can demonstrate with explicit caveats:
-1. **Documentary Compliance Verification:** Indexing the presence or absence of mandatory completion certificates (`ATTACH_ID`); deep OCR and computer vision inspection are deferred.
+1. **Documentary Attachment Indexing:** Indexing the presence or absence of associated portal attachment records (`ATTACH_ID` / `FILE_STATUS`); classifying document types and verifying completion certificate compliance requires inspecting external attachment payloads and is deferred.
 2. **Macro-Geographic Allocation Analysis:** Analyzing fund distribution across District Magistrate jurisdictions (`IDA_NAME`) and Parliamentary Constituencies; pinpoint site auditing is constrained.
 3. **Citizen Sentiment Analysis:** Aggregating public review ratings where available (currently populated on <0.1% of completed assets).
 
@@ -575,7 +582,7 @@ Phase 0 (Data Audit, Relational Verification, Provenance Snapshot & Scope Freeze
 3. The phantom "177 inverted dates" anomaly has been proven to be an artifact of unpartitioned joining, confirming zero underlying temporal contradictions in the official portal data.
 4. The prototype scope has been strictly bounded to objective, statistical, and official compliance indicators, eliminating speculative fraud assertions and unsupported demographic earmark claims.
 
-**Phase 0 is formally closed. The system baseline is frozen and approved for Phase 1 (Data Normalization & Relational Staging) upon user instruction.**
+**Phase 0 Data Audit is formally closed. The empirical baseline is frozen and approved as Part 1 of Phase 0 (Data Foundation & Analytical Model), enabling the canonical domain model specification and normalized staging dataset.**
 
 ---
 *Signed by:* **Antigravity AI Agent**  
