@@ -21,8 +21,11 @@
           ]);
         in
         {
+          formatter = pkgs.nixfmt;
+
           default = pkgs.mkShell {
             packages = [
+              pkgs.nixfmt
               pythonEnv
               pkgs.curl
               pkgs.jq
@@ -50,8 +53,6 @@
               exec python3 "${./scraper/mplads/mplads_scraper.py}" "$@"
             '';
           };
-
-          default = self.packages.${pkgs.stdenv.hostPlatform.system}.mplads-scraper;
         });
     };
 }
