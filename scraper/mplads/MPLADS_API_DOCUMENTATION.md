@@ -519,7 +519,7 @@ The portal hosts public guidelines, SOPs, and the official permissible works cat
 
 ### 6.3 Active MP Count
 - **Endpoint:** `POST /rest/PreLoginDashboardData/getTotalMPData`
-- **Payload:** `{"uname": "0,0,0,2"}` $\rightarrow$ `{"Total Active MP": "539"}`
+- **Payload:** `{"uname": "0,0,0,2"}` → `{"Total Active MP": "539"}`
 
 ---
 

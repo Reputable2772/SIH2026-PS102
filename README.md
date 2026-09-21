@@ -175,8 +175,9 @@ Detailed schema definitions, nullability, and JSON samples are documented in [MP
 ├── flake.lock                              # Nix flake lockfile
 ├── README.md                               # Project overview and instructions
 ├── docs/
-│   ├── Core.md                             # Core prototype specification & implementation guide
-│   └── PHASE_0_DATA_FOUNDATION.md          # Canonical Phase 0 data audit & analytical specification
+│   ├── Core.md                                 # Core prototype specification & implementation guide
+│   ├── PHASE_0_DATA_FOUNDATION.md              # Canonical Phase 0 data audit & analytical specification
+│   └── PHASE_1_BASELINES_AND_CORE_DETECTION.md # Phase 1 baselines & core detection specification
 └── scraper/
 
     └── mplads/
