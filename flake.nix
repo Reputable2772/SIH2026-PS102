@@ -18,6 +18,15 @@
           pythonEnv = pkgs.python3.withPackages (ps: with ps; [
             requests
             pandas
+            numpy
+            scipy
+            scikit-learn
+            pyarrow
+            fastapi
+            uvicorn
+            jinja2
+            joblib
+            pytest
           ]);
         in
         {
@@ -43,9 +52,34 @@
           pythonEnv = pkgs.python3.withPackages (ps: with ps; [
             requests
             pandas
+            numpy
+            scipy
+            scikit-learn
+            pyarrow
+            fastapi
+            uvicorn
+            jinja2
+            joblib
+            pytest
           ]);
         in
         {
+          default = pkgs.writeShellApplication {
+            name = "mplads-engine";
+            runtimeInputs = [ pythonEnv ];
+            text = ''
+              exec python3 -m src.cli "$@"
+            '';
+          };
+
+          mplads-engine = pkgs.writeShellApplication {
+            name = "mplads-engine";
+            runtimeInputs = [ pythonEnv ];
+            text = ''
+              exec python3 -m src.cli "$@"
+            '';
+          };
+
           mplads-scraper = pkgs.writeShellApplication {
             name = "mplads-scraper";
             runtimeInputs = [ pythonEnv ];

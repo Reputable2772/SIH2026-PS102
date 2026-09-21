@@ -9,10 +9,12 @@ __pycache__/
 *$py.class
 .venv/
 env/
+.pytest_cache/
+.PROJECT_OVERVIEW_TEMPORARY.md
 
 # Scraped raw data & attachments
 *.csv
 *.json
 !*.lock
 attachments/
-data/
+/data/
