@@ -12,6 +12,9 @@ import pandas as pd
 import numpy as np
 
 
+from src.config import STATISTICS
+
+
 class LifecycleStage:
     RECOMMENDED = "RECOMMENDED"
     SANCTIONED = "SANCTIONED"
@@ -65,11 +68,39 @@ class WorkLifecycleReconstructor:
             merged["RECOMMENDATION_DATE"] = merged["RECOMMENDATION_DATE"].combine_first(merged["RECOMMENDATION_DATE_rec"])
             merged.drop(columns=["RECOMMENDATION_DATE_rec"], inplace=True)
 
-        # 3. Aggregate Expenditures per work
+        # 3. Aggregate Expenditures per work (Core Invariants)
+        # - WORK_STATUS == "Payment Success" included in total_disbursed
+        # - Payment In-Progress excluded from total_disbursed; retained for telemetry/quality
+        # - Penny-drop test transactions (<= PENNY_DROP_MAX_AMOUNT) excluded from total_disbursed
+        # - Missing expenditure records remain NaN / absent, never silently becoming zero
         exp_agg = pd.DataFrame()
         if not df_expenditures.empty and "WORK_RECOMMENDATION_DTL_ID" in df_expenditures.columns:
-            exp_grp = df_expenditures.groupby("WORK_RECOMMENDATION_DTL_ID")
-            exp_agg = exp_grp.agg(
+            exp_df = df_expenditures.copy()
+
+            # Status classification
+            if "WORK_STATUS" in exp_df.columns:
+                is_success = exp_df["WORK_STATUS"].astype(str).str.strip() == "Payment Success"
+                is_in_progress = exp_df["WORK_STATUS"].astype(str).str.strip() == "Payment In-Progress"
+            else:
+                is_success = pd.Series(True, index=exp_df.index)
+                is_in_progress = pd.Series(False, index=exp_df.index)
+
+            # Penny-drop / validation test transaction detection (<= PENNY_DROP_MAX_AMOUNT INR)
+            disb_vals = pd.to_numeric(exp_df["FUND_DISBURSED_AMT"], errors="coerce").fillna(0.0)
+            is_penny_drop = disb_vals <= STATISTICS.PENNY_DROP_MAX_AMOUNT
+
+            # Genuine successful disbursements
+            exp_df["is_successful_disb"] = is_success & (~is_penny_drop)
+            exp_df["is_in_progress_disb"] = is_in_progress
+            exp_df["is_penny_drop_disb"] = is_success & is_penny_drop
+
+            # Distinct subsets
+            succ_df = exp_df[exp_df["is_successful_disb"]]
+            inp_df = exp_df[exp_df["is_in_progress_disb"]]
+            penny_df = exp_df[exp_df["is_penny_drop_disb"]]
+
+            # Successful aggregates
+            succ_agg = succ_df.groupby("WORK_RECOMMENDATION_DTL_ID").agg(
                 total_disbursed=("FUND_DISBURSED_AMT", "sum"),
                 payment_count=("FUND_DISBURSED_AMT", "count"),
                 first_payment_date=("EXPENDITURE_DATE", "min"),
@@ -80,22 +111,64 @@ class WorkLifecycleReconstructor:
                 work_id_exp=("WORK_ID", "first")
             ).reset_index()
 
+            # In-progress telemetry
+            inp_agg = inp_df.groupby("WORK_RECOMMENDATION_DTL_ID").agg(
+                in_progress_disbursed=("FUND_DISBURSED_AMT", "sum"),
+                in_progress_payment_count=("FUND_DISBURSED_AMT", "count")
+            ).reset_index()
+
+            # Penny drop telemetry
+            penny_agg = penny_df.groupby("WORK_RECOMMENDATION_DTL_ID").agg(
+                penny_drop_disbursed=("FUND_DISBURSED_AMT", "sum"),
+                penny_drop_count=("FUND_DISBURSED_AMT", "count")
+            ).reset_index()
+
+            # Base entity info for works with vouchers (even if no successful payment yet)
+            all_exp_works = exp_df.groupby("WORK_RECOMMENDATION_DTL_ID").agg(
+                primary_vendor_any=("VENDOR_NAME", "first"),
+                ia_name_any=("IA_NAME", "first"),
+                work_id_exp_any=("WORK_ID", "first")
+            ).reset_index()
+            all_exp_works["has_expenditure_record"] = True
+
+            # Merge all aggregates for works with expenditure entries
+            exp_agg = pd.merge(all_exp_works, succ_agg, on="WORK_RECOMMENDATION_DTL_ID", how="left")
+            exp_agg = pd.merge(exp_agg, inp_agg, on="WORK_RECOMMENDATION_DTL_ID", how="left")
+            exp_agg = pd.merge(exp_agg, penny_agg, on="WORK_RECOMMENDATION_DTL_ID", how="left")
+
+            # Fallback for entity names if successful subset was empty
+            exp_agg["primary_vendor"] = exp_agg["primary_vendor"].combine_first(exp_agg["primary_vendor_any"])
+            exp_agg["ia_name"] = exp_agg["ia_name"].combine_first(exp_agg["ia_name_any"])
+            exp_agg["work_id_exp"] = exp_agg["work_id_exp"].combine_first(exp_agg["work_id_exp_any"])
+            exp_agg.drop(columns=["primary_vendor_any", "ia_name_any", "work_id_exp_any"], inplace=True)
+
+            # For works with expenditure records but no successful disbursements, total_disbursed is 0.0
+            # (indicating zero confirmed disbursements, distinct from missing expenditure which is NaN)
+            exp_agg["total_disbursed"] = exp_agg["total_disbursed"].fillna(0.0)
+            exp_agg["payment_count"] = exp_agg["payment_count"].fillna(0).astype(int)
+            exp_agg["vendor_count"] = exp_agg["vendor_count"].fillna(0).astype(int)
+            exp_agg["in_progress_disbursed"] = exp_agg["in_progress_disbursed"].fillna(0.0)
+            exp_agg["in_progress_payment_count"] = exp_agg["in_progress_payment_count"].fillna(0).astype(int)
+            exp_agg["penny_drop_disbursed"] = exp_agg["penny_drop_disbursed"].fillna(0.0)
+            exp_agg["penny_drop_count"] = exp_agg["penny_drop_count"].fillna(0).astype(int)
+
         if not exp_agg.empty:
             merged = pd.merge(merged, exp_agg, on="WORK_RECOMMENDATION_DTL_ID", how="left")
+            merged["has_expenditure_record"] = merged["has_expenditure_record"].fillna(False).astype(bool)
         else:
-            merged["total_disbursed"] = 0.0
-            merged["payment_count"] = 0
+            merged["has_expenditure_record"] = False
+            merged["total_disbursed"] = np.nan
+            merged["payment_count"] = np.nan
             merged["first_payment_date"] = pd.NaT
             merged["last_payment_date"] = pd.NaT
             merged["vendor_count"] = 0
             merged["primary_vendor"] = None
             merged["ia_name"] = None
             merged["work_id_exp"] = None
-
-        # Fill missing expenditure metrics
-        merged["total_disbursed"] = merged["total_disbursed"].fillna(0.0)
-        merged["payment_count"] = merged["payment_count"].fillna(0).astype(int)
-        merged["vendor_count"] = merged["vendor_count"].fillna(0).astype(int)
+            merged["in_progress_disbursed"] = np.nan
+            merged["in_progress_payment_count"] = 0
+            merged["penny_drop_disbursed"] = np.nan
+            merged["penny_drop_count"] = 0
 
         # 4. Merge Completed works
         comp_cols = [
@@ -126,6 +199,10 @@ class WorkLifecycleReconstructor:
             merged.drop(columns=["work_id_exp"], inplace=True)
 
         # 5. Compute Lifecycle Durations (in calendar days)
+        for dt_col in ["SANCTION_DATE", "RECOMMENDATION_DATE", "first_payment_date", "last_payment_date", "ACTUAL_END_DATE"]:
+            if dt_col in merged.columns and not pd.api.types.is_datetime64_any_dtype(merged[dt_col]):
+                merged[dt_col] = pd.to_datetime(merged[dt_col], errors="coerce")
+
         merged["days_rec_to_sanction"] = (
             merged["SANCTION_DATE"] - merged["RECOMMENDATION_DATE"]
         ).dt.days
@@ -144,7 +221,7 @@ class WorkLifecycleReconstructor:
 
         # 6. Determine Canonical Lifecycle Stage
         is_completed = merged["ACTUAL_END_DATE"].notna() | (merged["ACTUAL_AMOUNT"] > 0)
-        is_disbursed = (merged["total_disbursed"] > 0) | (merged["payment_count"] > 0)
+        is_disbursed = (merged["total_disbursed"].fillna(0.0) > 0) | (merged["payment_count"].fillna(0) > 0)
         is_sanctioned = merged["SANCTION_DATE"].notna() | (merged["SANCTION_AMOUNT"] > 0)
 
         conditions = [

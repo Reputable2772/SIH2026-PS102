@@ -38,7 +38,7 @@ class DataQualityAuditor:
 
         # 3. Financial validity
         valid_sanc_amt = (df["SANCTION_AMOUNT"] > 0).astype(float)
-        non_negative_disb = (df["total_disbursed"] >= 0).astype(float)
+        non_negative_disb = (df["total_disbursed"].isna() | (df["total_disbursed"] >= 0)).astype(float)
         fin_score = (valid_sanc_amt * 0.6 + non_negative_disb * 0.4)
 
         # 4. Descriptive richness
@@ -57,9 +57,9 @@ class DataQualityAuditor:
         cov = grp.agg(
             total_works=("WORK_RECOMMENDATION_DTL_ID", "count"),
             completed_works=("ACTUAL_END_DATE", lambda s: s.notna().sum()),
-            disbursed_works=("total_disbursed", lambda s: (s > 0).sum()),
+            disbursed_works=("total_disbursed", lambda s: (s.fillna(0) > 0).sum()),
             total_sanctioned_amt=("SANCTION_AMOUNT", "sum"),
-            total_disbursed_amt=("total_disbursed", "sum"),
+            total_disbursed_amt=("total_disbursed", lambda s: s.dropna().sum()),
             avg_dqi=("dqi_score", "mean"),
             missing_rec_date_pct=("RECOMMENDATION_DATE", lambda s: s.isna().mean() * 100),
             missing_sanc_date_pct=("SANCTION_DATE", lambda s: s.isna().mean() * 100)
