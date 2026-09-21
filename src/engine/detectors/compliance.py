@@ -35,8 +35,8 @@ class SanctionSLABreachDetector(BaseDetector):
         for _, row in flagged.iterrows():
             days = float(row["days_rec_to_sanction"])
             overage = days - self.sla_days
-            # Severity scales from 0.1 at 46 days to 1.0 at 225+ days (6 months overage)
-            sev = float(np.clip(0.1 + (overage / 180.0) * 0.9, 0.1, 1.0))
+            # Severity scales from 0.1 at 46 days to 0.60 at 365+ days overage (calibrated procedural SLA ceiling)
+            sev = float(np.clip(0.1 + (overage / 365.0) * 0.5, 0.1, 0.60))
             conf = float(np.clip(row.get("dqi_score", 0.8), 0.3, 1.0))
             
             work_id = str(row.get("WORK_ID") or row.get("WORK_RECOMMENDATION_DTL_ID"))
@@ -160,11 +160,12 @@ class StalledDisbursementDetector(BaseDetector):
         self.stall_days = stall_days
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
-        # Filter to works sanctioned 90+ days ago with zero expenditure and not marked completed
+        # Filter to works sanctioned 90+ days ago with zero or missing disbursement and not marked completed
+        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
         mask = (
             (df_works["SANCTION_DATE"].notna()) &
             (df_works["days_since_sanction"] > self.stall_days) &
-            (df_works["total_disbursed"] <= 0) &
+            (disb_s <= 0) &
             (df_works["ACTUAL_END_DATE"].isna())
         )
         flagged = df_works[mask]
@@ -179,6 +180,12 @@ class StalledDisbursementDetector(BaseDetector):
             work_id = str(row.get("WORK_ID") or row.get("WORK_RECOMMENDATION_DTL_ID"))
             rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
 
+            disb_val = row.get("total_disbursed")
+            has_exp = row.get("has_expenditure_record", False)
+            disb_float = float(disb_val) if pd.notna(disb_val) else 0.0
+            is_missing_exp = pd.isna(disb_val) or not bool(has_exp)
+            disb_desc = "no expenditure vouchers logged" if is_missing_exp else f"₹{disb_float:,.0f} disbursed"
+
             f = Finding(
                 finding_id=f"FIND-D3-{rec_id}",
                 work_id=work_id,
@@ -191,11 +198,13 @@ class StalledDisbursementDetector(BaseDetector):
                 evidence={
                     "days_since_sanction": days_stalled,
                     "stall_threshold_days": self.stall_days,
-                    "total_disbursed": 0.0,
+                    "total_disbursed": disb_float,
+                    "has_expenditure_record": bool(has_exp),
+                    "is_missing_expenditure": is_missing_exp,
                     "sanction_date": str(row["SANCTION_DATE"])
                 },
                 explanation=(
-                    f"Work has had zero disbursements across {int(days_stalled)} days following sanction, "
+                    f"Work has had zero confirmed disbursements ({disb_desc}) across {int(days_stalled)} days following sanction, "
                     f"breaching the 90-day ministerial dormancy monitoring threshold."
                 ),
                 next_review_action=(

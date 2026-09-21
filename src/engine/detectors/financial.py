@@ -99,9 +99,11 @@ class CostOverrunDetector(BaseDetector):
         self.threshold_ratio = threshold_ratio
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
+        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
         mask = (
             (df_works["SANCTION_AMOUNT"] > 0) &
-            (df_works["total_disbursed"] > df_works["SANCTION_AMOUNT"] * self.threshold_ratio)
+            (df_works["total_disbursed"].notna()) &
+            (disb_s > df_works["SANCTION_AMOUNT"] * self.threshold_ratio)
         )
         flagged = df_works[mask]
 
@@ -166,12 +168,14 @@ class TemporalDisbursementSpikeDetector(BaseDetector):
 
         has_dates = df_works["first_payment_date"].notna() & df_works["last_payment_date"].notna()
         days_span = (df_works["last_payment_date"] - df_works["first_payment_date"]).dt.days
+        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
+        pmt_cnt = df_works["payment_count"].fillna(0) if "payment_count" in df_works.columns else pd.Series(0, index=df_works.index)
 
         mask = (
             has_dates &
-            (df_works["payment_count"] >= 3) &
+            (pmt_cnt >= 3) &
             (days_span <= 7) &
-            (df_works["total_disbursed"] >= 1000000.0)
+            (disb_s >= 1000000.0)
         )
         flagged = df_works[mask]
 

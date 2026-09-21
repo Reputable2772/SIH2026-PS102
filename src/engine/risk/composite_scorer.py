@@ -107,7 +107,7 @@ class CompositeRiskScorer:
                 has_statutory = True
 
             # Composite severity: 70% driven by the most severe anomaly category,
-            # 30% driven by active weighted average across present categories
+            # 30% driven by cross-category breadth accumulation across the risk spectrum
             max_cat_sev = max(cat_severities.values()) if cat_severities else 0.0
             cat_weights_map = {
                 AnomalyCategory.COMPLIANCE.value: self.weights.WEIGHT_COMPLIANCE,
@@ -117,11 +117,11 @@ class CompositeRiskScorer:
                 AnomalyCategory.NETWORK_SIMILARITY.value: 0.15,
                 AnomalyCategory.ML_SUPPORTING.value: 0.15,
             }
-            active_weight_sum = sum(cat_weights_map.get(cat, 0.1) for cat in cat_severities)
+            ref_weight_scale = self.weights.WEIGHT_COMPLIANCE + self.weights.WEIGHT_FINANCIAL
             weighted_sum = sum(cat_severities[cat] * cat_weights_map.get(cat, 0.1) for cat in cat_severities)
-            avg_active_sev = weighted_sum / active_weight_sum if active_weight_sum > 0 else 0.0
+            breadth_term = min(1.0, weighted_sum / ref_weight_scale) if ref_weight_scale > 0 else 0.0
 
-            comp_sev = min(1.0, 0.70 * max_cat_sev + 0.30 * avg_active_sev)
+            comp_sev = min(1.0, 0.70 * max_cat_sev + 0.30 * breadth_term)
 
             # Composite confidence (harmonic mean between average finding confidence and DQI)
             avg_find_conf = np.mean([f.confidence for f in w_findings]) if w_findings else 0.5
