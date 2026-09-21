@@ -78,7 +78,7 @@ python3 -m src.cli validate
 *Verifies:*
 1. Anomaly injection monotonicity (AC-13).
 2. Cost outlier sensitivity (AC-13).
-3. Ground-truth recall against CAG Report 31 Chapter 4 & Parliamentary Q44 delay criteria (AC-16: 100% recall).
+3. Benchmark simulation against CAG Report 31 Chapter 4 & Parliamentary Q44 delay criteria (AC-16).
 4. State reporting coverage-bias check (AC-17).
 
 ### 3.6 Longitudinal Trend Analysis (`trends`)
