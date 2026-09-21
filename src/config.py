@@ -39,6 +39,7 @@ class StatisticalThresholds:
     COST_OUTLIER_IQR_FACTOR: float = 1.5 # IQR multiplier for Tukey outlier detection
     EXPENDITURE_OVERRUN_RATIO: float = 1.05  # Actual disbursement > 105% of sanctioned amount
     ROUND_NUMBER_VOUCHER_STEP: float = 10000.0  # Step for round voucher clustering analysis
+    PENNY_DROP_MAX_AMOUNT: float = 10.0  # Threshold for account-validation test transactions (<= 10 INR)
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class NetworkThresholds:
     TOP_ENTITY_SHARE_THRESHOLD: float = 0.40 # Entity capturing > 40% of district volume
     SIMILARITY_DUPLICATE_THRESHOLD: float = 0.82 # TF-IDF + metadata composite similarity threshold
     SIMILARITY_COST_WINDOW_RATIO: float = 0.20   # Cost difference within +/- 20%
+    ENABLE_VENDOR_CONCENTRATION: bool = False    # Gated per Core.md FR-08 / AC-07 until entity disambiguation verified
 
 
 @dataclass(frozen=True)

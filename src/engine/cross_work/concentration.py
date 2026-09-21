@@ -47,10 +47,17 @@ class AgencyConcentrationDetector(BaseDetector):
 
             top_ia = ia_counts.index[0]
             top_share = float(shares.iloc[0] / 100.0)
+            cr3 = float(shares.head(3).sum() / 100.0)
 
             if hhi >= self.hhi_threshold and top_share >= self.share_threshold:
                 # Flag the works belonging to this dominant IA in this district
                 dominant_works = sub[sub["ia_name"] == top_ia]
+                is_single_agency = (len(ia_counts) == 1) or (top_share >= 0.80)
+                statutory_note = (
+                    " Note: High concentration observed. Reviewers should verify if local Panchayati Raj / State statutory guidelines "
+                    "designate a single implementing agency (e.g. DRDA / Zila Parishad) for this jurisdiction."
+                    if is_single_agency else ""
+                )
                 for _, row in dominant_works.head(5).iterrows():  # Top sample works for reviewer queue
                     rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
                     work_id = str(row.get("WORK_ID") or rec_id)
@@ -72,12 +79,16 @@ class AgencyConcentrationDetector(BaseDetector):
                             "dominant_ia": top_ia,
                             "district_hhi": round(hhi, 1),
                             "agency_share_pct": round(top_share * 100, 1),
+                            "cr1": round(top_share, 3),
+                            "cr3": round(cr3, 3),
                             "agency_work_count": int(ia_counts.iloc[0]),
-                            "district_total_works": total_works
+                            "district_total_works": total_works,
+                            "statutory_single_agency_candidate": bool(is_single_agency)
                         },
                         explanation=(
                             f"Implementing Agency '{top_ia}' monopolizes {top_share:.1%} of works in District '{district}' "
-                            f"(District HHI: {hhi:.0f}), exceeding competitive thresholds and creating institutional capture risk."
+                            f"(CR1: {top_share:.1%}, CR3: {cr3:.1%}, District HHI: {hhi:.0f}), exceeding competitive thresholds and creating institutional capture risk."
+                            + statutory_note
                         ),
                         next_review_action=(
                             "Review district agency selection criteria; mandate open distribution of future project sanctions "
@@ -105,10 +116,11 @@ class VendorConcentrationDetector(BaseDetector):
         self.min_vendor_works = min_vendor_works
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
+        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
         valid = df_works[
             df_works["IDA_NAME"].notna() &
             df_works["primary_vendor"].notna() &
-            (df_works["total_disbursed"] > 0)
+            (disb_s > 0)
         ].copy()
 
         if valid.empty:

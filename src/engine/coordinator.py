@@ -59,7 +59,16 @@ class DetectionResultSet:
             if not filtered:
                 filtered = self.scores
 
-        return sorted(filtered, key=lambda x: (x.composite_severity, x.composite_confidence), reverse=True)[:n]
+        return sorted(
+            filtered,
+            key=lambda x: (
+                x.composite_severity,
+                x.composite_confidence,
+                len(x.category_severities),
+                x.findings_count
+            ),
+            reverse=True
+        )[:n]
 
     def to_dataframe(self) -> pd.DataFrame:
         """Converts scored results into a structured DataFrame for analysis."""
@@ -128,14 +137,19 @@ class MPLADSEngine:
     Provides unified programmatic API across all phases.
     """
 
-    def __init__(self, data_dir: Optional[Path] = None, models_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        data_dir: Optional[Path] = None,
+        models_dir: Optional[Path] = None,
+        enable_vendor_concentration: Optional[bool] = None
+    ):
         from src.ml.integration import MLIntegrationManager
         self.data_dir = data_dir or PROCESSED_DIR
         self.models_dir = models_dir or MODELS_DIR
         self.ml_manager = MLIntegrationManager(models_dir=self.models_dir)
         self.baseline_engine = BaselineEngine()
         self.core_detection_engine = CoreDetectionEngine(baseline_engine=self.baseline_engine)
-        self.cross_work_engine = CrossWorkIntelligenceEngine()
+        self.cross_work_engine = CrossWorkIntelligenceEngine(enable_vendor_concentration=enable_vendor_concentration)
         self.composite_scorer = CompositeRiskScorer()
 
     def load_data(self, sample_size: Optional[int] = None, force_reload: bool = False) -> pd.DataFrame:

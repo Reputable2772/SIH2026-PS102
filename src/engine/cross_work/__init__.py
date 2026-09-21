@@ -7,6 +7,7 @@ systemic entity recurrence, and aggregate trend tracking.
 
 from typing import List, Dict, Any, Optional
 import pandas as pd
+from src.config import NETWORK
 from src.engine.detectors.base import Finding
 from src.engine.cross_work.similarity import DuplicateWorkDetector
 from src.engine.cross_work.concentration import AgencyConcentrationDetector, VendorConcentrationDetector
@@ -17,7 +18,11 @@ from src.engine.cross_work.trends import TrendAnalyzer
 class CrossWorkIntelligenceEngine:
     """Orchestrates all Phase 2 cross-work and relational pattern analytics."""
 
-    def __init__(self):
+    def __init__(self, enable_vendor_concentration: Optional[bool] = None):
+        self.enable_vendor_concentration = (
+            enable_vendor_concentration if enable_vendor_concentration is not None
+            else getattr(NETWORK, "ENABLE_VENDOR_CONCENTRATION", False)
+        )
         self.similarity_detector = DuplicateWorkDetector()
         self.agency_detector = AgencyConcentrationDetector()
         self.vendor_detector = VendorConcentrationDetector()
@@ -36,9 +41,10 @@ class CrossWorkIntelligenceEngine:
         ia_findings = self.agency_detector.detect(df_works)
         findings.extend(ia_findings)
 
-        # 3. Vendor Concentration
-        v_findings = self.vendor_detector.detect(df_works)
-        findings.extend(v_findings)
+        # 3. Vendor Concentration (Gated per Core.md FR-08 & AC-07)
+        if self.enable_vendor_concentration:
+            v_findings = self.vendor_detector.detect(df_works)
+            findings.extend(v_findings)
 
         # 4. Entity Recurrence across anomalies
         if prior_findings:
