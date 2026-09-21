@@ -18,7 +18,6 @@ REPORTS_DIR = BASE_DIR / "reports"
 
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
-REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass(frozen=True)

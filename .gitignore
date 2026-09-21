@@ -16,6 +16,9 @@ env/
 *.csv
 *.json
 !*.lock
-!reports/*.json
 attachments/
 /data/
+
+# Temporary directories & artifacts
+reports/
+scripts/
