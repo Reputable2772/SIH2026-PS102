@@ -8,7 +8,7 @@ auditors, district authorities, MoSPI oversight committees, and browser verifica
 
 import html
 import json
-from typing import List, Dict, Any, Optional
+from typing import Any
 from datetime import datetime
 
 

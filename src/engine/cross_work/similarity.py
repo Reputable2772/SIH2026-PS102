@@ -5,7 +5,7 @@ Detects candidate duplicate or highly similar works within geographic and catego
 using TF-IDF n-gram vectorization and financial proximity windows.
 """
 
-from typing import List, Dict, Tuple, Optional
+from typing import List, Optional
 import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer

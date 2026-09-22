@@ -5,7 +5,7 @@ Enforces strict separation between sanction-time predictive features and
 full lifecycle features for unsupervised anomaly detection.
 """
 
-from typing import Tuple, List, Dict, Optional
+from typing import Tuple, Dict, Optional
 import pandas as pd
 import numpy as np
 from src.config import POLICY

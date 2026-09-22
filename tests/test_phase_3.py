@@ -2,9 +2,7 @@
 Test Suite for Phase 3: Risk, Explainability & Validation Suite.
 """
 
-import pytest
 import pandas as pd
-import numpy as np
 from src.engine.detectors.base import Finding, AnomalyCategory
 from src.engine.risk.composite_scorer import CompositeRiskScorer, ReviewPriority
 from src.engine.risk.dossier import DossierBuilder

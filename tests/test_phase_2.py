@@ -2,7 +2,6 @@
 Test Suite for Phase 2: Cross-Work, Entity & Pattern Intelligence.
 """
 
-import pytest
 import pandas as pd
 import numpy as np
 from src.engine.detectors.base import Finding, AnomalyCategory

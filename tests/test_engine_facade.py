@@ -8,7 +8,7 @@ import pandas as pd
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from src.engine import MPLADSEngine, DetectionResultSet, ReviewPriority
+from src.engine import MPLADSEngine, DetectionResultSet
 
 
 @pytest.fixture
@@ -81,6 +81,11 @@ def test_engine_detect_decoupled_flow(sample_works_df):
     assert "work_rec_id" in df.columns
     assert "priority" in df.columns
     assert "next_review_action" in df.columns
+
+    # Check direct dossier retrieval from result set
+    dossier_direct = results.get_dossier("REC_001")
+    assert dossier_direct.work_rec_id == "REC_001"
+    assert len(dossier_direct.next_review_actions) > 0
 
 
 def test_engine_generate_dossier_and_html(sample_works_df):

@@ -6,7 +6,7 @@ and quality scoring into the canonical analytical DataFrame.
 """
 
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+from typing import Tuple
 import pandas as pd
 from src.config import DATA_DIR, PROCESSED_DIR
 from src.data.loader import DataLoader

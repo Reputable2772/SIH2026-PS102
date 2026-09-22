@@ -5,7 +5,7 @@ Trains an Isolation Forest on empirical multi-stage lifecycle feature vectors to
 unusual multidimensional irregularities not captured by individual univariate rules.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import IsolationForest

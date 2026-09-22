@@ -25,6 +25,8 @@ class CostPeerOutlierDetector(BaseDetector):
         self.z_threshold = z_threshold
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: BaselineEngine) -> List[Finding]:
+        if "SANCTION_AMOUNT" not in df_works.columns:
+            return []
         findings = []
         valid_works = df_works[df_works["SANCTION_AMOUNT"] > 0]
 
@@ -99,6 +101,8 @@ class CostOverrunDetector(BaseDetector):
         self.threshold_ratio = threshold_ratio
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
+        if "SANCTION_AMOUNT" not in df_works.columns:
+            return []
         disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
         mask = (
             (df_works["SANCTION_AMOUNT"] > 0) &

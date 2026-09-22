@@ -5,9 +5,8 @@ Performs mathematical stress tests to verify scoring monotonicity, sensitivity,
 and zero-variance edge cases as mandated by AC-13.
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 import pandas as pd
-import numpy as np
 from src.engine.detectors import CoreDetectionEngine
 from src.engine.risk.composite_scorer import CompositeRiskScorer, ReviewPriority
 
@@ -85,6 +84,10 @@ class AnomalyInjectionTester:
                 "WORK_CATEGORY": "Health",
                 "SANCTION_AMOUNT": 500000.0 + i * 2000.0,
                 "days_rec_to_sanction": 25,
+                "SANCTION_DATE": pd.Timestamp("2024-01-20"),
+                "ACTUAL_END_DATE": pd.Timestamp("2024-06-01"),
+                "days_since_sanction": 200,
+                "days_sanction_to_completion": 132,
                 "dqi_score": 0.90,
                 "house": "LOK_SABHA",
                 "total_disbursed": 500000.0,
@@ -100,6 +103,10 @@ class AnomalyInjectionTester:
             "WORK_CATEGORY": "Health",
             "SANCTION_AMOUNT": 5000000.0,  # 10x
             "days_rec_to_sanction": 25,
+            "SANCTION_DATE": pd.Timestamp("2024-01-20"),
+            "ACTUAL_END_DATE": pd.Timestamp("2024-06-01"),
+            "days_since_sanction": 200,
+            "days_sanction_to_completion": 132,
             "dqi_score": 0.95,
             "house": "LOK_SABHA",
             "total_disbursed": 5000000.0,

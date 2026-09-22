@@ -6,7 +6,7 @@ across multiple independent anomaly findings using Empirical Bayes / Beta-Binomi
 statistical exceedance testing to eliminate exposure/portfolio-size volume bias.
 """
 
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict
 from collections import defaultdict
 import numpy as np
 import pandas as pd
@@ -18,6 +18,15 @@ class EntityRecurrenceDetector:
     """
     Surfaces systemic compliance or financial risk when entities recur across anomaly types
     at rates statistically exceeding their peer baseline expectation.
+
+    Formulation:
+    1. Exposure (N): Total portfolio size per agency/vendor.
+    2. Numerator (k): Distinct anomalous works linked to the entity.
+    3. Baseline (p0): Leave-one-out peer baseline failure rate.
+    4. Empirical Bayes: Fits Beta(alpha, beta) prior via method of moments.
+    5. Shrunk Rate: p_tilde = (k + alpha) / (N + alpha + beta).
+    6. Exceedance Z: Z = (p_tilde - p0) / sqrt(p0 * (1 - p0) / N).
+    7. Significance: Z >= 1.645 (p < 0.05, one-tailed) with FDR q-value correction.
     """
 
     def __init__(

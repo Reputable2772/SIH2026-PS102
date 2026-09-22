@@ -19,6 +19,9 @@ env/
 attachments/
 /data/
 
+# Machine learning model artifacts
+models/
+
 # Temporary directories & artifacts
 reports/
 scripts/

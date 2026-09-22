@@ -6,10 +6,10 @@ and historical moving baselines for works, costs, and lifecycles.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple, Optional, Any
+from typing import Dict, Tuple, Optional
 import pandas as pd
 import numpy as np
-from src.config import POLICY, STATISTICS
+from src.config import STATISTICS
 
 
 @dataclass

@@ -10,15 +10,8 @@ from src.engine.detectors.compliance import (
     SanctionSLABreachDetector,
     ExecutionDeadlineDetector,
     StalledDisbursementDetector,
-    LifecycleLeapDetector
 )
-from src.engine.detectors.financial import (
-    CostPeerOutlierDetector,
-    CostOverrunDetector,
-    TemporalDisbursementSpikeDetector
-)
-from src.engine.detectors.execution import ProgressExpenditureMismatchDetector
-from src.engine.detectors.agency import IAOverloadDetector
+from src.engine.detectors.financial import CostOverrunDetector
 from src.engine.detectors import CoreDetectionEngine
 
 

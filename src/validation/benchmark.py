@@ -1,19 +1,25 @@
 """
-Historical Audit Benchmark and Recall Validation Suite.
+Historical Audit Typology Benchmark Suite.
 
-Benchmarks detection recall against named irregularity typologies from the Comptroller and
-Auditor General (CAG) Performance Audit Report (No. 31 of 2010-11) and Parliamentary Q*44.
+Benchmarks detection recall against named irregularity typologies from Chapter 4 of
+the Comptroller and Auditor General (CAG) Performance Audit Report (No. 31 of 2010-11)
+and Lok Sabha Starred Question No. *44 (July 2026).
+
+Note:
+This represents a curated 30-case archetype benchmark testing mechanistic sensitivity
+to audit-defined failure modes (dormancy, diversion, turnaround SLA overruns) rather
+than an external database join (as CAG has not published an audit on 2023+ e-SAKSHI).
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 import pandas as pd
 import numpy as np
 from src.engine.detectors import CoreDetectionEngine
-from src.engine.risk.composite_scorer import CompositeRiskScorer, ReviewPriority
+from src.engine.risk.composite_scorer import CompositeRiskScorer
 
 
 class HistoricalAuditBenchmark:
-    """Evaluates empirical recall against ground-truth government audit typologies."""
+    """Evaluates mechanistic recall against ground-truth government audit typologies."""
 
     @staticmethod
     def generate_audit_benchmark_corpus() -> pd.DataFrame:

@@ -3,11 +3,15 @@ Canonical Work Reconstruction and Lifecycle State Engine.
 
 Reconstructs the primary analytical entity (Work) across the e-SAKSHI lifecycle:
 Recommendation -> Sanction -> Execution -> Progress -> Payments -> Completion.
+
+Invariants:
+- Anchors legal project existence on administrative sanction records.
+- Financial disbursements strictly filter on WORK_STATUS == 'Payment Success' and amount > 10.0.
+- Payment In-Progress vouchers and penny-drop validation transactions (<= 10.0 INR) are isolated into telemetry fields.
+- Absence of expenditure vouchers preserves total_disbursed as NaN (never silent zero).
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, date
-from typing import Dict, List, Optional, Any
+from typing import Optional
 import pandas as pd
 import numpy as np
 

@@ -10,7 +10,7 @@ Any user interface, CLI, background job, or third-party service can import and i
 with this engine without depending on argparse, terminal formatters, or web servers.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 import json
@@ -21,7 +21,7 @@ from src.data.pipeline import DataPipeline
 from src.engine.baselines import BaselineEngine
 from src.engine.detectors import CoreDetectionEngine, AnomalyFinding
 from src.engine.cross_work import CrossWorkIntelligenceEngine
-from src.engine.risk.composite_scorer import CompositeRiskScorer, WorkRiskScore, ReviewPriority
+from src.engine.risk.composite_scorer import CompositeRiskScorer, WorkRiskScore
 from src.engine.risk.dossier import DossierBuilder, GovernanceDossier
 from src.validation.injection import AnomalyInjectionTester
 from src.validation.benchmark import HistoricalAuditBenchmark
@@ -69,6 +69,14 @@ class DetectionResultSet:
             ),
             reverse=True
         )[:n]
+
+    def get_dossier(self, work_rec_id: Any) -> GovernanceDossier:
+        """Constructs an explainable 5-question audit dossier for a work from scored results."""
+        target_id = str(work_rec_id)
+        for s in self.scores:
+            if str(s.work_rec_id) == target_id:
+                return DossierBuilder.build_dossier(s)
+        raise ValueError(f"Work with recommendation ID '{target_id}' not found in detection results.")
 
     def to_dataframe(self) -> pd.DataFrame:
         """Converts scored results into a structured DataFrame for analysis."""

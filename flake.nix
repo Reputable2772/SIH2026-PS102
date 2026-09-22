@@ -5,36 +5,51 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
-      supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-      forEachSupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
-        pkgs = import nixpkgs { inherit system; };
-      });
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+      forEachSupportedSystem =
+        f:
+        nixpkgs.lib.genAttrs supportedSystems (
+          system:
+          f {
+            pkgs = import nixpkgs { inherit system; };
+          }
+        );
     in
     {
-      devShells = forEachSupportedSystem ({ pkgs }:
+      formatter = forEachSupportedSystem ({ pkgs }: pkgs.nixfmt);
+
+      devShells = forEachSupportedSystem (
+        { pkgs }:
         let
-          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            requests
-            pandas
-            numpy
-            scipy
-            scikit-learn
-            pyarrow
-            fastapi
-            uvicorn
-            jinja2
-            joblib
-            pytest
-          ]);
+          pythonEnv = pkgs.python3.withPackages (
+            ps: with ps; [
+              requests
+              pandas
+              numpy
+              scipy
+              scikit-learn
+              pyarrow
+              fastapi
+              uvicorn
+              jinja2
+              joblib
+              pytest
+            ]
+          );
         in
         {
-          formatter = pkgs.nixfmt;
-
           default = pkgs.mkShell {
             packages = [
               pkgs.nixfmt
+              pkgs.ruff
               pythonEnv
               pkgs.curl
               pkgs.jq
@@ -45,23 +60,27 @@
               echo "Python: $(python3 --version)"
             '';
           };
-        });
+        }
+      );
 
-      packages = forEachSupportedSystem ({ pkgs }:
+      packages = forEachSupportedSystem (
+        { pkgs }:
         let
-          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            requests
-            pandas
-            numpy
-            scipy
-            scikit-learn
-            pyarrow
-            fastapi
-            uvicorn
-            jinja2
-            joblib
-            pytest
-          ]);
+          pythonEnv = pkgs.python3.withPackages (
+            ps: with ps; [
+              requests
+              pandas
+              numpy
+              scipy
+              scikit-learn
+              pyarrow
+              fastapi
+              uvicorn
+              jinja2
+              joblib
+              pytest
+            ]
+          );
         in
         {
           default = pkgs.writeShellApplication {
@@ -87,6 +106,7 @@
               exec python3 "${./scraper/mplads/mplads_scraper.py}" "$@"
             '';
           };
-        });
+        }
+      );
     };
 }

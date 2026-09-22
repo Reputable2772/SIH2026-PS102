@@ -5,7 +5,7 @@ Provides similarity / duplicate work detection, agency & vendor concentration an
 systemic entity recurrence, and aggregate trend tracking.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 import pandas as pd
 from src.config import NETWORK
 from src.engine.detectors.base import Finding

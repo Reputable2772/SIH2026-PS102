@@ -6,15 +6,13 @@ and analytical baseline thresholds as specified in docs/Core.md (v0.6).
 """
 
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Dict, List, Any
+from dataclasses import dataclass
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 PROCESSED_DIR = DATA_DIR / "processed"
 MODELS_DIR = BASE_DIR / "models"
-REPORTS_DIR = BASE_DIR / "reports"
 
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -22,7 +20,13 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 @dataclass(frozen=True)
 class PolicyThresholds:
-    """Statutory thresholds mandated by MPLADS Guidelines 2023 & Parliamentary monitoring."""
+    """
+    Statutory thresholds mandated by MPLADS Guidelines 2023 & Parliamentary monitoring.
+    - SANCTION_SLA_DAYS: Para 3.2.4 (IDA mandate to issue sanction or rejection within 45 days)
+    - EXECUTION_SLA_DAYS: Para 3.2.12 (Completion timeline generally not exceeding 1 year)
+    - RS_POST_TENURE_SLA_DAYS: Administrative exception for Rajya Sabha post-tenure completion
+    - DISBURSEMENT_STALL_DAYS: Ministerial 90-day post-sanction dormancy monitoring criterion
+    """
     SANCTION_SLA_DAYS: int = 45          # Para 3.2.4: IDA mandate to sanction/reject within 45 days
     EXECUTION_SLA_DAYS: int = 365        # Para 3.2.12: General execution deadline not exceeding 1 year
     RS_POST_TENURE_SLA_DAYS: int = 540   # Rajya Sabha post-tenure completion window exception

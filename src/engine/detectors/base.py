@@ -5,7 +5,7 @@ Defines the universal Finding contract mandated by FR-11, FR-12, and AC-19:
 Finding + Severity + Confidence + Evidence + Explanation + Next Review Action.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Any, List, Optional
 import pandas as pd

@@ -10,8 +10,6 @@ Tests every detector against:
 import pytest
 import pandas as pd
 import numpy as np
-from pathlib import Path
-
 from src.config import PROCESSED_DIR
 from src.engine.detectors.compliance import (
     SanctionSLABreachDetector,
@@ -21,14 +19,9 @@ from src.engine.detectors.compliance import (
 )
 from src.engine.detectors.financial import (
     CostPeerOutlierDetector,
-    CostOverrunDetector,
-    TemporalDisbursementSpikeDetector
+    CostOverrunDetector
 )
 from src.engine.detectors.execution import ProgressExpenditureMismatchDetector
-from src.engine.detectors.agency import IAOverloadDetector
-from src.engine.cross_work.similarity import DuplicateWorkDetector
-from src.engine.cross_work.concentration import AgencyConcentrationDetector, VendorConcentrationDetector
-from src.engine.cross_work.recurrence import EntityRecurrenceDetector
 from src.engine.baselines import BaselineEngine
 from src.engine.detectors.base import Finding
 

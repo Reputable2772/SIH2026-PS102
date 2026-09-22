@@ -5,9 +5,9 @@ Combines independent detector findings into orthogonal Severity and Confidence a
 applies statutory policy overrides, and classifies works into actionable review priority tiers.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from collections import defaultdict
 import numpy as np
 import pandas as pd

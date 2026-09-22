@@ -88,16 +88,26 @@ class ExecutionDeadlineDetector(BaseDetector):
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
         findings = []
+        if "ACTUAL_END_DATE" not in df_works.columns or "house" not in df_works.columns:
+            return []
 
         # Check completed works
-        completed = df_works[df_works["ACTUAL_END_DATE"].notna()].copy()
-        ls_over = completed[(completed["house"] == "LOK_SABHA") & (completed["days_sanction_to_completion"] > self.ls_sla)]
-        rs_over = completed[(completed["house"] == "RAJYA_SABHA") & (completed["days_sanction_to_completion"] > self.rs_sla)]
+        if "days_sanction_to_completion" in df_works.columns:
+            completed = df_works[df_works["ACTUAL_END_DATE"].notna()].copy()
+            ls_over = completed[(completed["house"] == "LOK_SABHA") & (completed["days_sanction_to_completion"] > self.ls_sla)]
+            rs_over = completed[(completed["house"] == "RAJYA_SABHA") & (completed["days_sanction_to_completion"] > self.rs_sla)]
+        else:
+            ls_over = pd.DataFrame()
+            rs_over = pd.DataFrame()
 
         # Check in-progress works that have already surpassed the SLA
-        ongoing = df_works[df_works["ACTUAL_END_DATE"].isna() & df_works["SANCTION_DATE"].notna()].copy()
-        ls_ong_over = ongoing[(ongoing["house"] == "LOK_SABHA") & (ongoing["days_since_sanction"] > self.ls_sla)]
-        rs_ong_over = ongoing[(ongoing["house"] == "RAJYA_SABHA") & (ongoing["days_since_sanction"] > self.rs_sla)]
+        if "SANCTION_DATE" in df_works.columns and "days_since_sanction" in df_works.columns:
+            ongoing = df_works[df_works["ACTUAL_END_DATE"].isna() & df_works["SANCTION_DATE"].notna()].copy()
+            ls_ong_over = ongoing[(ongoing["house"] == "LOK_SABHA") & (ongoing["days_since_sanction"] > self.ls_sla)]
+            rs_ong_over = ongoing[(ongoing["house"] == "RAJYA_SABHA") & (ongoing["days_since_sanction"] > self.rs_sla)]
+        else:
+            ls_ong_over = pd.DataFrame()
+            rs_ong_over = pd.DataFrame()
 
         all_flagged = pd.concat([ls_over, rs_over, ls_ong_over, rs_ong_over], ignore_index=True)
 
@@ -160,13 +170,17 @@ class StalledDisbursementDetector(BaseDetector):
         self.stall_days = stall_days
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
+        if "SANCTION_DATE" not in df_works.columns or "days_since_sanction" not in df_works.columns:
+            return []
+
         # Filter to works sanctioned 90+ days ago with zero or missing disbursement and not marked completed
         disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
+        has_end = "ACTUAL_END_DATE" in df_works.columns
         mask = (
             (df_works["SANCTION_DATE"].notna()) &
             (df_works["days_since_sanction"] > self.stall_days) &
             (disb_s <= 0) &
-            (df_works["ACTUAL_END_DATE"].isna())
+            (df_works["ACTUAL_END_DATE"].isna() if has_end else pd.Series(True, index=df_works.index))
         )
         flagged = df_works[mask]
 

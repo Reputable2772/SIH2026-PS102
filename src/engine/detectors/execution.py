@@ -25,13 +25,16 @@ class ProgressExpenditureMismatchDetector(BaseDetector):
         self.min_days = min_days
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
+        if "SANCTION_AMOUNT" not in df_works.columns or "days_since_sanction" not in df_works.columns:
+            return []
+        has_end = "ACTUAL_END_DATE" in df_works.columns
         disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
         mask = (
             (df_works["SANCTION_AMOUNT"] > 0) &
-            (df_works["total_disbursed"].notna()) &
+            (df_works["total_disbursed"].notna() if "total_disbursed" in df_works.columns else False) &
             (disb_s >= df_works["SANCTION_AMOUNT"] * self.min_ratio) &
             (df_works["days_since_sanction"] > self.min_days) &
-            (df_works["ACTUAL_END_DATE"].isna())
+            (df_works["ACTUAL_END_DATE"].isna() if has_end else pd.Series(True, index=df_works.index))
         )
         flagged = df_works[mask]
 

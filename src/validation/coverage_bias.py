@@ -5,9 +5,8 @@ Tests whether anomaly flag rates correlate spuriously with state-level data comp
 or digitization coverage as mandated by AC-17.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 import pandas as pd
-import numpy as np
 from scipy.stats import spearmanr
 from src.engine.detectors.base import Finding
 

@@ -2,13 +2,11 @@
 Test Suite for Phase 0: Data Foundation & Analytical Model.
 """
 
-import pytest
 import pandas as pd
 import numpy as np
 from src.data.normalizer import DataNormalizer
 from src.data.lifecycle import WorkLifecycleReconstructor, LifecycleStage
 from src.data.quality import DataQualityAuditor
-from src.data.pipeline import DataPipeline
 
 
 def test_normalizer_dates_and_amounts():
