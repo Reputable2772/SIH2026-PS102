@@ -10,11 +10,15 @@ This repository contains the reverse-engineered API specifications, data scraper
 
 ## 📑 Table of Contents
 1. [Architecture & Reverse Engineering Overview](#architecture--reverse-engineering-overview)
-2. [Datasets Available](#datasets-available)
-3. [Environment Setup with Nix](#environment-setup-with-nix)
-4. [Scraper CLI Usage](#scraper-cli-usage)
-5. [Data Linkage & Schema](#data-linkage--schema)
-6. [Documentation Directory](#documentation-directory)
+2. [Datasets Available & Data Architecture](#-phase-0-data-architecture-primary-scrape-vs-supplementary-evidence)
+3. [Environment Setup with Nix](#-environment-setup-with-nix)
+4. [Intelligence Engine CLI Usage](#-intelligence-engine-cli-usage)
+5. [Scraper CLI Usage](#-scraper-cli-usage)
+6. [Using the Engine as a Python Library](#-using-the-engine-as-a-python-library)
+7. [Running the Test Suite](#-running-the-test-suite)
+8. [Data Linkage & Schema](#-data-linkage--schema)
+9. [Repository Structure](#-repository-structure)
+10. [Documentation Directory](#-documentation-directory)
 
 ---
 
@@ -64,16 +68,22 @@ These sources provide external validation benchmarks, statutory operational thre
 | **Scheme Guidelines & Circulars** | MPLADS Guidelines w.e.f. 1 April 2023 & Annexure-VIII | Official permissible work catalog, tender ceilings, and administrative SOPs |
 
 ### Setup for Supplementary Validation Files:
-Supplementary validation documents are stored locally under `data/validation_evidence/` and `data/official_documents/`:
+Supplementary validation documents are stored locally under `data/validation_evidence/` and `data/official_documents/`.
+> [!NOTE]
+> Ensure parent directories are created with `--create-dirs` (or `mkdir -p data/validation_evidence`) to prevent curl write errors.
+
 ```bash
 # MoSPI Annual Report 2023-24 (18 MB)
-curl -k -s -L "https://mospi.gov.in/sites/default/files/publication_reports/AnnualReport_2023-24.pdf" \
+curl -k -sS -L --create-dirs "https://mospi.gov.in/sites/default/files/publication_reports/AnnualReport_2023-24.pdf" \
   -o "data/validation_evidence/mospi_annual_report_2023_24.pdf"
 
 # CAG Performance Audit on MPLADS Works (2.6 MB)
-curl -k -s -L "https://cag.gov.in/webroot/uploads/download_audit_report/2010/Union_Performance_Local_area_Development_Scheme_31_2010_chapter_4.pdf" \
+curl -k -sS -L --create-dirs "https://cag.gov.in/webroot/uploads/download_audit_report/2010/Union_Performance_Local_area_Development_Scheme_31_2010_chapter_4.pdf" \
   -o "data/validation_evidence/cag_mplads_audit_ch4.pdf"
 ```
+
+> **How Supplementary Validation Files Are Used:**  
+> These PDFs serve as external qualitative benchmarks, sanity checks, and statutory ground truth. Rather than running slow/unreliable PDF ingestion in the real-time pipeline, their statutory criteria (e.g. 45-day sanction SLA, 365-day execution deadline, 90-day disbursement stall) are codified into [`src/config.py`](src/config.py), and their documented audit typologies (such as CAG Report 31 dormancy and Parliamentary Q44 breaches) are codified into [`src/validation/benchmark.py`](src/validation/benchmark.py) to mathematically benchmark and test detection recall.
 
 ### Public Work-Level Endpoint Investigation:
 An exhaustive probe of e-SAKSHI routes confirmed the following work-level endpoints:
@@ -102,8 +112,8 @@ nix develop --command python3 scraper/mplads/mplads_scraper.py --help
 ```
 
 The shell provides:
-- Python 3 with `requests` and `pandas`
-- `curl` and `jq`
+- Python 3 with `requests`, `pandas`, `numpy`, `scipy`, `scikit-learn`, `pyarrow`, `fastapi`, `uvicorn`, `jinja2`, `joblib`, and `pytest`
+- `curl`, `jq`, and `ruff`
 - `nixfmt` code formatter
 
 ---
@@ -162,7 +172,71 @@ The datasets form a relational schema interconnected via primary and foreign key
                                                                            [Inspection Photos / PDFs]
 ```
 
-Detailed schema definitions, nullability, and JSON samples are documented in [MPLADS_API_DOCUMENTATION.md: Section 3](scraper/mplads/MPLADS_API_DOCUMENTATION.md#3-core-granular-datasets-gettilesreportdata). Complete empirical join audits and data quality findings are in [PHASE_0_DATA_FOUNDATION.md](docs/PHASE_0_DATA_FOUNDATION.md).
+Detailed schema definitions, nullability, and JSON samples are documented in [MPLADS_API_DOCUMENTATION.md: Section 3](scraper/mplads/MPLADS_API_DOCUMENTATION.md#3-core-granular-datasets-gettilesreportdata). Complete empirical join audits and data quality findings are in [phase_0_data_foundation.md](docs/phase_0_data_foundation.md).
+
+---
+
+## 🧠 Intelligence Engine CLI Usage
+
+The analytical core provides an interactive CLI ([`src/cli.py`](src/cli.py)) and Nix application (`nix run .#mplads-engine -- ...`):
+
+```bash
+# Reconstruct canonical work lifecycles from 15 raw datasets
+python3 -m src.cli pipeline
+
+# Run multi-detector anomaly scan & rank critical review cases
+python3 -m src.cli detect --sample 10000 --top 15
+
+# Export interactive, self-contained HTML audit dashboard & JSON report
+python3 -m src.cli detect --sample 5000 --html reports/audit_overview.html --json reports/audit_overview.json
+
+# Generate an Explainable 5-Question Audit Dossier for an individual work
+python3 -m src.cli dossier 202625 --html reports/dossier_202625.html
+
+# Train unsupervised (Isolation Forest) & supervised early-warning models
+python3 -m src.cli train-ml --sample 20000
+
+# Execute mathematical validation suite (Monotonicity, CAG Recall, Coverage Bias)
+python3 -m src.cli validate
+
+# Analyze macroeconomic operational trends across tenures
+python3 -m src.cli trends
+```
+
+For complete CLI flags and options, see the comprehensive [User Guide](docs/USER_GUIDE.md).
+
+---
+
+## 💻 Using the Engine as a Python Library
+
+The analytical core is decoupled from the CLI and can be embedded directly into custom workflows:
+
+```python
+from src.engine import MPLADSEngine
+
+engine = MPLADSEngine()
+
+# Load canonical normalized works
+works = engine.load_data(sample_size=5000)
+
+# Run detection across rule-based, cross-work, and ML detectors
+result = engine.detect(works, include_cross_work=True, include_ml=True)
+print(f"Flagged {len(result.findings)} findings across {len(result.works)} works")
+
+# Export audit report or inspection dossier
+result.export_html("reports/audit_overview.html")
+dossier = engine.generate_dossier(work_rec_id=202625, works=works)
+engine.export_dossier(dossier, format="html", output_path="reports/dossier_202625.html")
+```
+
+---
+
+## 🧪 Running the Test Suite
+
+Run the full 52-test automated regression and detection matrix suite:
+```bash
+pytest tests/ -v
+```
 
 ---
 
@@ -170,17 +244,42 @@ Detailed schema definitions, nullability, and JSON samples are documented in [MP
 
 ```
 .
-├── .envrc                                  # Direnv configuration
-├── flake.nix                               # Nix flake definition (Python, devShell, packages)
-├── flake.lock                              # Nix flake lockfile
-├── README.md                               # Project overview and instructions
+├── .envrc                                      # Direnv environment auto-load
+├── flake.nix                                   # Reproducible Nix flake definition
+├── flake.lock                                  # Locked Nix dependencies
+├── pytest.ini                                  # Pytest configuration
+├── README.md                                   # Project overview and quickstart
 ├── docs/
+│   ├── USER_GUIDE.md                           # Interactive CLI & Architecture User Guide
 │   ├── Core.md                                 # Core prototype specification & implementation guide
-│   ├── PHASE_0_DATA_FOUNDATION.md              # Canonical Phase 0 data audit & analytical specification
-│   └── PHASE_1_BASELINES_AND_CORE_DETECTION.md # Phase 1 baselines & core detection specification
+│   ├── phase_0_data_foundation.md              # Canonical Phase 0 data audit & schema specification
+│   ├── phase_1_baselines_and_core_detection.md # Phase 1 baselines & core rule detectors
+│   ├── phase_2_cross_work_and_pattern_intelligence.md # Network & similarity detectors
+│   ├── phase_3_risk_explainability_and_validation.md  # Two-axis risk scoring & validation suite
+│   └── phase_4_ml_models_and_integration.md    # Machine learning ensemble & pipeline integration
+├── src/
+│   ├── cli.py                                  # Unified interactive CLI entrypoint
+│   ├── config.py                               # Statutory policy thresholds & baseline configuration
+│   ├── data/                                   # Ingestion, normalization & lifecycle reconstruction
+│   ├── engine/                                 # Rule detectors, risk scorer & engine facade
+│   ├── ml/                                     # Isolation Forest & Gradient Boosting early-warning models
+│   └── validation/                             # Anomaly injection, CAG benchmarks & coverage bias
+├── tests/                                      # Full 52-test automated regression & matrix test suite
 └── scraper/
-
     └── mplads/
-        ├── mplads_scraper.py               # Robust CLI bulk scraper with retry and multi-house support
-        └── MPLADS_API_DOCUMENTATION.md     # Exhaustive REST API specification & data dictionaries
+        ├── mplads_scraper.py                   # High-resilience REST bulk scraper
+        └── MPLADS_API_DOCUMENTATION.md         # Exhaustive REST API specification
 ```
+
+---
+
+## 📚 Documentation Directory
+
+- [Interactive CLI & Architecture User Guide](docs/USER_GUIDE.md)
+- [Core Prototype Specification](docs/Core.md)
+- [Phase 0: Canonical Data Foundation](docs/phase_0_data_foundation.md)
+- [Phase 1: Baselines & Core Anomaly Detection](docs/phase_1_baselines_and_core_detection.md)
+- [Phase 2: Cross-Work & Pattern Intelligence](docs/phase_2_cross_work_and_pattern_intelligence.md)
+- [Phase 3: Two-Axis Risk & Validation Suite](docs/phase_3_risk_explainability_and_validation.md)
+- [Phase 4: ML Models & Pipeline Integration](docs/phase_4_ml_models_and_integration.md)
+- [e-SAKSHI REST API Documentation](scraper/mplads/MPLADS_API_DOCUMENTATION.md)
