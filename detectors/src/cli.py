@@ -8,9 +8,12 @@ validation audits, and interactive HTML report generation.
 
 import argparse
 import sys
-import json
 import webbrowser
 from pathlib import Path
+_base = Path.cwd()
+for _dir in [str(_base / "detectors"), str(_base)]:
+    if _dir not in sys.path:
+        sys.path.insert(0, _dir)
 
 from src.engine import MPLADSEngine
 from src.data.pipeline import DataPipeline

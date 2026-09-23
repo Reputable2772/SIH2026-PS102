@@ -9,7 +9,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 # Base directories
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path.cwd()
 DATA_DIR = BASE_DIR / "data"
 PROCESSED_DIR = DATA_DIR / "processed"
 MODELS_DIR = BASE_DIR / "models"
