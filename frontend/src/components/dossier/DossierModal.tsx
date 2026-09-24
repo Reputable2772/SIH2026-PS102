@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { api } from '../../api/client';
-import { GovernanceDossier, ReviewState } from '../../types';
+import { GovernanceDossier, ReviewState, DetectorDefinition } from '../../types';
 import { PriorityBadge } from '../common/PriorityBadge';
+import { DetectorDetailModal } from '../detectors/DetectorDetailModal';
 import {
   X,
   Printer,
@@ -51,6 +52,26 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
   const [status, setStatus] = useState<'UNDER_REVIEW' | 'DQM_DISPATCHED' | 'RESOLVED' | 'ESCALATED_TO_CAG'>('UNDER_REVIEW');
   const [checkedActions, setCheckedActions] = useState<string[]>([]);
   const [auditorNotes, setAuditorNotes] = useState<string>('');
+  const [selectedRule, setSelectedRule] = useState<DetectorDefinition | null>(null);
+  const [allDetectors, setAllDetectors] = useState<DetectorDefinition[]>([]);
+
+  useEffect(() => {
+    api.getDetectors().then((data) => setAllDetectors(data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedRule) {
+          setSelectedRule(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, selectedRule]);
 
   useEffect(() => {
     if (!workRecId) return;
@@ -74,6 +95,52 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
       })
       .finally(() => setLoading(false));
   }, [workRecId]);
+
+  const handleOpenDetectorRule = (code: string) => {
+    const match = allDetectors.find((d) => d.code === code);
+    if (match) {
+      setSelectedRule(match);
+      return;
+    }
+    const fallbacks: Record<string, DetectorDefinition> = {
+      'COMP-D1': {
+        code: 'COMP-D1',
+        name: 'Sanction SLA Breach',
+        phase: 'Phase 1',
+        category: 'COMPLIANCE',
+        description: 'Mandates that District Authority (IDA) must issue administrative sanction or formal rejection within 45 days of receiving MP recommendation.',
+        legal_basis: 'MPLADS Guidelines 2023, Para 3.2.4',
+        threshold: '> 45 calendar days from MP recommendation',
+        formula: 'days_rec_to_sanction > 45',
+        prescribed_action: 'Issue compliance notice to District Planning Officer; require written justification for delayed administrative sanction.',
+      },
+      'COMP-D2': {
+        code: 'COMP-D2',
+        name: 'Execution Delay Overrun',
+        phase: 'Phase 2',
+        category: 'COMPLIANCE',
+        description: 'Mandates that sanctioned works must be completed within 1 statutory year (365 calendar days).',
+        legal_basis: 'MPLADS Guidelines 2023, Para 3.2.12',
+        threshold: '> 365 calendar days from administrative sanction without completion',
+        formula: 'days_since_sanction > 365 and not is_completed',
+        prescribed_action: 'Dispatch District Quality Monitor (DQM) site inspection; summon Implementing Agency executive engineer.',
+      },
+      'COMP-D3': {
+        code: 'COMP-D3',
+        name: 'Dormant Undisbursed Sanction',
+        phase: 'Phase 2',
+        category: 'FINANCIAL',
+        description: 'Identifies sanctioned works where zero capital has been mobilized after 90 days of sanction approval.',
+        legal_basis: 'Ministerial Directive & General Financial Rules (GFR)',
+        threshold: '> 90 days from sanction with 0 disbursed capital',
+        formula: 'days_since_sanction > 90 and total_disbursed == 0',
+        prescribed_action: 'Review tender award status; issue show-cause notice to Implementing Agency for fund paralysis.',
+      },
+    };
+    if (fallbacks[code]) {
+      setSelectedRule(fallbacks[code]);
+    }
+  };
 
   if (!workRecId) return null;
 
@@ -128,8 +195,13 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
   const isExecutionOverdue = daysSanc > 365;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/85 backdrop-blur-md animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-5xl xl:max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden relative">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#131D31]">
           <div className="flex items-center space-x-3">
@@ -279,14 +351,25 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
                   </div>
 
                   {/* Step 2: Administrative Sanction */}
-                  <div className={clsx(
-                    'p-3 rounded-lg border space-y-1 relative',
-                    isSanctionBreached ? 'bg-red-500/10 border-red-500/30' : 'bg-[#0B1120] border-slate-800'
-                  )}>
+                  <div
+                    onClick={() => isSanctionBreached && handleOpenDetectorRule('COMP-D1')}
+                    className={clsx(
+                      'p-3 rounded-lg border space-y-1 relative transition-all',
+                      isSanctionBreached
+                        ? 'bg-red-500/10 border-red-500/40 hover:border-red-400 hover:bg-red-500/20 cursor-pointer shadow-sm'
+                        : 'bg-[#0B1120] border-slate-800'
+                    )}
+                    title={isSanctionBreached ? 'Click to inspect statutory COMP-D1 rule' : undefined}
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-400 font-mono">2. Sanction</span>
                       {isSanctionBreached ? (
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                        <div className="flex items-center space-x-1">
+                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-red-500/20 text-red-300 font-bold">
+                            COMP-D1 →
+                          </span>
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                        </div>
                       ) : (
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                       )}
@@ -298,14 +381,25 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
                   </div>
 
                   {/* Step 3: Mobilization */}
-                  <div className={clsx(
-                    'p-3 rounded-lg border space-y-1 relative',
-                    isMobilizationStalled ? 'bg-amber-500/10 border-amber-500/30' : 'bg-[#0B1120] border-slate-800'
-                  )}>
+                  <div
+                    onClick={() => isMobilizationStalled && handleOpenDetectorRule('COMP-D3')}
+                    className={clsx(
+                      'p-3 rounded-lg border space-y-1 relative transition-all',
+                      isMobilizationStalled
+                        ? 'bg-amber-500/10 border-amber-500/40 hover:border-amber-400 hover:bg-amber-500/20 cursor-pointer shadow-sm'
+                        : 'bg-[#0B1120] border-slate-800'
+                    )}
+                    title={isMobilizationStalled ? 'Click to inspect statutory COMP-D3 rule' : undefined}
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-400 font-mono">3. Mobilize</span>
                       {isMobilizationStalled ? (
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                        <div className="flex items-center space-x-1">
+                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
+                            COMP-D3 →
+                          </span>
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                        </div>
                       ) : (
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                       )}
@@ -319,14 +413,25 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
                   </div>
 
                   {/* Step 4: Execution */}
-                  <div className={clsx(
-                    'p-3 rounded-lg border space-y-1 relative',
-                    isExecutionOverdue ? 'bg-red-500/10 border-red-500/30' : 'bg-[#0B1120] border-slate-800'
-                  )}>
+                  <div
+                    onClick={() => isExecutionOverdue && handleOpenDetectorRule('COMP-D2')}
+                    className={clsx(
+                      'p-3 rounded-lg border space-y-1 relative transition-all',
+                      isExecutionOverdue
+                        ? 'bg-red-500/10 border-red-500/40 hover:border-red-400 hover:bg-red-500/20 cursor-pointer shadow-sm'
+                        : 'bg-[#0B1120] border-slate-800'
+                    )}
+                    title={isExecutionOverdue ? 'Click to inspect statutory COMP-D2 rule' : undefined}
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-400 font-mono">4. Execution</span>
                       {isExecutionOverdue ? (
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                        <div className="flex items-center space-x-1">
+                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-red-500/20 text-red-300 font-bold">
+                            COMP-D2 →
+                          </span>
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                        </div>
                       ) : (
                         <Clock className="w-3.5 h-3.5 text-sky-400" />
                       )}
@@ -502,6 +607,14 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
           )}
         </div>
       </div>
+
+      {/* Explanatory Statutory Detector Rule Modal */}
+      {selectedRule && (
+        <DetectorDetailModal
+          detector={selectedRule}
+          onClose={() => setSelectedRule(null)}
+        />
+      )}
     </div>
   );
 };

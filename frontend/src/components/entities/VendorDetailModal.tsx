@@ -27,6 +27,14 @@ export const VendorDetailModal: React.FC<VendorDetailModalProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     if (!vendorName) return;
     setLoading(true);
     api.getVendorDetail(vendorName)
@@ -42,8 +50,13 @@ export const VendorDetailModal: React.FC<VendorDetailModalProps> = ({
   const works = data?.sample_works || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#131D31]">
           <div className="flex items-center space-x-3">
@@ -161,7 +174,16 @@ export const VendorDetailModal: React.FC<VendorDetailModalProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-sans">
                       {works.map((w: any) => (
-                        <tr key={w.work_rec_id} className="hover:bg-slate-800/40 transition-colors">
+                        <tr
+                          key={w.work_rec_id}
+                          onClick={() => {
+                            if (onOpenDossier) {
+                              onClose();
+                              onOpenDossier(w.work_rec_id);
+                            }
+                          }}
+                          className="hover:bg-slate-800/60 cursor-pointer transition-colors"
+                        >
                           <td className="py-2.5 px-3">
                             <PriorityBadge priority={w.priority} size="sm" />
                           </td>
