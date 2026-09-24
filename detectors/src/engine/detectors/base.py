@@ -7,7 +7,8 @@ Finding + Severity + Confidence + Evidence + Explanation + Next Review Action.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
 
 
@@ -23,15 +24,16 @@ class AnomalyCategory(str, Enum):
 @dataclass
 class Finding:
     """Standard explainable finding representation."""
+
     work_id: str
     detector_code: str
     detector_name: str
     category: AnomalyCategory
-    severity: float         # [0.0, 1.0] deviation magnitude
-    confidence: float       # [0.0, 1.0] sample & data quality weight
-    evidence: Dict[str, Any]# Observed facts vs baseline
-    explanation: str        # Plain-language auditable rationale
-    next_review_action: str # Prescribed administrative next step
+    severity: float  # [0.0, 1.0] deviation magnitude
+    confidence: float  # [0.0, 1.0] sample & data quality weight
+    evidence: Dict[str, Any]  # Observed facts vs baseline
+    explanation: str  # Plain-language auditable rationale
+    next_review_action: str  # Prescribed administrative next step
     finding_id: Optional[str] = None
     work_rec_id: Optional[str] = None
     state_name: Optional[str] = None
@@ -58,7 +60,7 @@ class Finding:
             "next_review_action": self.next_review_action,
             "state_name": self.state_name,
             "ida_name": self.ida_name,
-            "sanction_amount": self.sanction_amount
+            "sanction_amount": self.sanction_amount,
         }
 
 

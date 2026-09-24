@@ -6,11 +6,11 @@ modular components for baselines, rule detectors, cross-work intelligence, risk 
 dossier generation, and ML integration.
 """
 
-from src.engine.coordinator import MPLADSEngine, DetectionResultSet
 from src.engine.baselines import BaselineEngine
-from src.engine.detectors import CoreDetectionEngine, AnomalyFinding, AnomalyCategory
+from src.engine.coordinator import DetectionResultSet, MPLADSEngine
 from src.engine.cross_work import CrossWorkIntelligenceEngine
-from src.engine.risk.composite_scorer import CompositeRiskScorer, WorkRiskScore, ReviewPriority
+from src.engine.detectors import AnomalyCategory, AnomalyFinding, CoreDetectionEngine
+from src.engine.risk.composite_scorer import CompositeRiskScorer, ReviewPriority, WorkRiskScore
 from src.engine.risk.dossier import DossierBuilder, GovernanceDossier
 
 __all__ = [

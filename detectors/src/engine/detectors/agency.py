@@ -6,20 +6,18 @@ and multi-district execution bottlenecks.
 """
 
 from typing import List, Optional
-import pandas as pd
+
 import numpy as np
-from src.engine.detectors.base import BaseDetector, Finding, AnomalyCategory
+import pandas as pd
+
+from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
 
 
 class IAOverloadDetector(BaseDetector):
     """Detects Implementing Agencies with excessive backlogs of delayed unfinished works."""
 
     def __init__(self, min_delayed_works: int = 10, min_total_expenditure: float = 5000000.0):
-        super().__init__(
-            code="AGY-D11",
-            name="Implementing Agency Capacity Overload",
-            category=AnomalyCategory.AGENCY
-        )
+        super().__init__(code="AGY-D11", name="Implementing Agency Capacity Overload", category=AnomalyCategory.AGENCY)
         self.min_delayed_works = min_delayed_works
         self.min_total_expenditure = min_total_expenditure
 
@@ -39,12 +37,12 @@ class IAOverloadDetector(BaseDetector):
             total_works=("WORK_RECOMMENDATION_DTL_ID", "count"),
             delayed_works=("is_delayed_ongoing", "sum"),
             total_disbursed=("total_disbursed", "sum"),
-            districts_count=("IDA_NAME", "nunique")
+            districts_count=("IDA_NAME", "nunique"),
         ).reset_index()
 
         overloaded_ias = ia_stats[
-            (ia_stats["delayed_works"] >= self.min_delayed_works) &
-            (ia_stats["total_disbursed"] >= self.min_total_expenditure)
+            (ia_stats["delayed_works"] >= self.min_delayed_works)
+            & (ia_stats["total_disbursed"] >= self.min_total_expenditure)
         ]
 
         findings = []
@@ -84,7 +82,7 @@ class IAOverloadDetector(BaseDetector):
                     "agency_delayed_works": delayed_cnt,
                     "agency_total_works": tot_cnt,
                     "districts_operating_in": dist_cnt,
-                    "agency_total_disbursed": tot_disb
+                    "agency_total_disbursed": tot_disb,
                 },
                 explanation=(
                     f"Executing Agency '{ia_name}' is burdened with {delayed_cnt} unfinished works exceeding 1 year "
@@ -96,7 +94,7 @@ class IAOverloadDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 

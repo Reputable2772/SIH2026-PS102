@@ -5,14 +5,15 @@ MPLADS Autonomous Audit & Intelligence Engine — Detectors Package.
 import sys
 from pathlib import Path
 
-# Ensure project root and detectors directory are in sys.path
-_base = Path.cwd()
-for _dir in [str(_base / "detectors"), str(_base)]:
+# Ensure detectors directory and project root are in sys.path
+_this_dir = Path(__file__).resolve().parent
+_repo_root = _this_dir.parent
+for _dir in [str(_this_dir), str(_repo_root)]:
     if _dir not in sys.path:
         sys.path.insert(0, _dir)
 
-from src.engine.coordinator import MPLADSEngine, DetectionResultSet
-from src.engine.detectors import CoreDetectionEngine, AnomalyFinding, AnomalyCategory
+from src.engine.coordinator import DetectionResultSet, MPLADSEngine
+from src.engine.detectors import AnomalyCategory, AnomalyFinding, CoreDetectionEngine
 
 __all__ = [
     "MPLADSEngine",

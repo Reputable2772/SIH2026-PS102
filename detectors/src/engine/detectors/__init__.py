@@ -5,22 +5,24 @@ Provides universal access to all modular detectors and batch execution orchestra
 """
 
 from typing import List, Optional
+
 import pandas as pd
-from src.engine.detectors.base import BaseDetector, Finding, AnomalyFinding, AnomalyCategory
+
+from src.engine.baselines import BaselineEngine
+from src.engine.detectors.agency import IAOverloadDetector
+from src.engine.detectors.base import AnomalyCategory, AnomalyFinding, BaseDetector, Finding
 from src.engine.detectors.compliance import (
-    SanctionSLABreachDetector,
     ExecutionDeadlineDetector,
+    LifecycleLeapDetector,
+    SanctionSLABreachDetector,
     StalledDisbursementDetector,
-    LifecycleLeapDetector
-)
-from src.engine.detectors.financial import (
-    CostPeerOutlierDetector,
-    CostOverrunDetector,
-    TemporalDisbursementSpikeDetector
 )
 from src.engine.detectors.execution import ProgressExpenditureMismatchDetector
-from src.engine.detectors.agency import IAOverloadDetector
-from src.engine.baselines import BaselineEngine
+from src.engine.detectors.financial import (
+    CostOverrunDetector,
+    CostPeerOutlierDetector,
+    TemporalDisbursementSpikeDetector,
+)
 
 
 class CoreDetectionEngine:
@@ -37,7 +39,7 @@ class CoreDetectionEngine:
             CostOverrunDetector(),
             TemporalDisbursementSpikeDetector(),
             ProgressExpenditureMismatchDetector(),
-            IAOverloadDetector()
+            IAOverloadDetector(),
         ]
 
     def fit_baselines(self, df_works: pd.DataFrame) -> "CoreDetectionEngine":

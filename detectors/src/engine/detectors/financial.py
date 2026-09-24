@@ -6,22 +6,20 @@ round-voucher clustering, and fiscal year-end disbursement rushes.
 """
 
 from typing import List, Optional
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from src.config import STATISTICS
-from src.engine.detectors.base import BaseDetector, Finding, AnomalyCategory
 from src.engine.baselines import BaselineEngine
+from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
 
 
 class CostPeerOutlierDetector(BaseDetector):
     """Detects works with sanction costs significantly exceeding peer cohorts."""
 
     def __init__(self, z_threshold: float = STATISTICS.COST_OUTLIER_Z_SCORE):
-        super().__init__(
-            code="FIN-D5",
-            name="Peer Group Cost Outlier",
-            category=AnomalyCategory.FINANCIAL
-        )
+        super().__init__(code="FIN-D5", name="Peer Group Cost Outlier", category=AnomalyCategory.FINANCIAL)
         self.z_threshold = z_threshold
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: BaselineEngine) -> List[Finding]:
@@ -70,7 +68,7 @@ class CostPeerOutlierDetector(BaseDetector):
                         "peer_iqr": base.cost_iqr,
                         "robust_z_score": round(z_score, 2),
                         "peer_cohort": cohort_desc,
-                        "peer_sample_size": base.sample_size
+                        "peer_sample_size": base.sample_size,
                     },
                     explanation=(
                         f"Work cost of ₹{amt:,.0f} deviates significantly (robust Z={z_score:.2f}) from the peer median of "
@@ -82,7 +80,7 @@ class CostPeerOutlierDetector(BaseDetector):
                     ),
                     state_name=state,
                     ida_name=row.get("IDA_NAME"),
-                    sanction_amount=amt
+                    sanction_amount=amt,
                 )
                 findings.append(f)
 
@@ -93,21 +91,21 @@ class CostOverrunDetector(BaseDetector):
     """Detects works where total disbursements exceed approved sanction limits."""
 
     def __init__(self, threshold_ratio: float = STATISTICS.EXPENDITURE_OVERRUN_RATIO):
-        super().__init__(
-            code="FIN-D6",
-            name="Sanction Cost Overrun",
-            category=AnomalyCategory.FINANCIAL
-        )
+        super().__init__(code="FIN-D6", name="Sanction Cost Overrun", category=AnomalyCategory.FINANCIAL)
         self.threshold_ratio = threshold_ratio
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
         if "SANCTION_AMOUNT" not in df_works.columns:
             return []
-        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
+        disb_s = (
+            df_works["total_disbursed"].fillna(0.0)
+            if "total_disbursed" in df_works.columns
+            else pd.Series(0.0, index=df_works.index)
+        )
         mask = (
-            (df_works["SANCTION_AMOUNT"] > 0) &
-            (df_works["total_disbursed"].notna()) &
-            (disb_s > df_works["SANCTION_AMOUNT"] * self.threshold_ratio)
+            (df_works["SANCTION_AMOUNT"] > 0)
+            & (df_works["total_disbursed"].notna())
+            & (disb_s > df_works["SANCTION_AMOUNT"] * self.threshold_ratio)
         )
         flagged = df_works[mask]
 
@@ -137,7 +135,7 @@ class CostOverrunDetector(BaseDetector):
                     "sanction_amount": sanc,
                     "total_disbursed": disb,
                     "overrun_ratio": round(ratio, 3),
-                    "excess_disbursed": excess
+                    "excess_disbursed": excess,
                 },
                 explanation=(
                     f"Total disbursement of ₹{disb:,.0f} exceeds approved administrative sanction of ₹{sanc:,.0f} "
@@ -149,7 +147,7 @@ class CostOverrunDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=sanc
+                sanction_amount=sanc,
             )
             findings.append(f)
 
@@ -160,11 +158,7 @@ class TemporalDisbursementSpikeDetector(BaseDetector):
     """Detects works with concentrated disbursements within a single week or March rush."""
 
     def __init__(self):
-        super().__init__(
-            code="FIN-D8",
-            name="Temporal Disbursement Spike",
-            category=AnomalyCategory.FINANCIAL
-        )
+        super().__init__(code="FIN-D8", name="Temporal Disbursement Spike", category=AnomalyCategory.FINANCIAL)
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
         if "first_payment_date" not in df_works.columns or "last_payment_date" not in df_works.columns:
@@ -172,15 +166,18 @@ class TemporalDisbursementSpikeDetector(BaseDetector):
 
         has_dates = df_works["first_payment_date"].notna() & df_works["last_payment_date"].notna()
         days_span = (df_works["last_payment_date"] - df_works["first_payment_date"]).dt.days
-        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
-        pmt_cnt = df_works["payment_count"].fillna(0) if "payment_count" in df_works.columns else pd.Series(0, index=df_works.index)
-
-        mask = (
-            has_dates &
-            (pmt_cnt >= 3) &
-            (days_span <= 7) &
-            (disb_s >= 1000000.0)
+        disb_s = (
+            df_works["total_disbursed"].fillna(0.0)
+            if "total_disbursed" in df_works.columns
+            else pd.Series(0.0, index=df_works.index)
         )
+        pmt_cnt = (
+            df_works["payment_count"].fillna(0)
+            if "payment_count" in df_works.columns
+            else pd.Series(0, index=df_works.index)
+        )
+
+        mask = has_dates & (pmt_cnt >= 3) & (days_span <= 7) & (disb_s >= 1000000.0)
         flagged = df_works[mask]
 
         findings = []
@@ -206,7 +203,7 @@ class TemporalDisbursementSpikeDetector(BaseDetector):
                     "payment_count": cnt,
                     "days_span": span,
                     "first_payment_date": str(row["first_payment_date"]),
-                    "last_payment_date": str(row["last_payment_date"])
+                    "last_payment_date": str(row["last_payment_date"]),
                 },
                 explanation=(
                     f"Rapid payment concentration: {cnt} separate vouchers totaling ₹{disb:,.0f} disbursed within "
@@ -218,7 +215,7 @@ class TemporalDisbursementSpikeDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 

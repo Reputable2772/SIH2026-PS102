@@ -6,15 +6,18 @@ and historical moving baselines for works, costs, and lifecycles.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple, Optional
-import pandas as pd
+from typing import Dict, Optional, Tuple
+
 import numpy as np
+import pandas as pd
+
 from src.config import STATISTICS
 
 
 @dataclass
 class PeerBaseline:
     """Holds computed statistical baseline for a peer cohort."""
+
     cohort_key: Tuple[str, ...]
     sample_size: int
     cost_median: float
@@ -52,8 +55,17 @@ class BaselineEngine:
                     cost_iqr=float(iqr),
                     cost_mean=float(sub["SANCTION_AMOUNT"].mean()),
                     cost_std=float(sub["SANCTION_AMOUNT"].std(ddof=1) if len(sub) > 1 else 0.0),
-                    days_sanc_median=float(sub["days_rec_to_sanction"].dropna().median() if "days_rec_to_sanction" in sub.columns and not sub["days_rec_to_sanction"].dropna().empty else 45.0),
-                    days_comp_median=float(sub["days_sanction_to_completion"].dropna().median() if "days_sanction_to_completion" in sub.columns and not sub["days_sanction_to_completion"].dropna().empty else 365.0)
+                    days_sanc_median=float(
+                        sub["days_rec_to_sanction"].dropna().median()
+                        if "days_rec_to_sanction" in sub.columns and not sub["days_rec_to_sanction"].dropna().empty
+                        else 45.0
+                    ),
+                    days_comp_median=float(
+                        sub["days_sanction_to_completion"].dropna().median()
+                        if "days_sanction_to_completion" in sub.columns
+                        and not sub["days_sanction_to_completion"].dropna().empty
+                        else 365.0
+                    ),
                 )
 
         # 2. Category fallback cohorts
@@ -70,8 +82,17 @@ class BaselineEngine:
                     cost_iqr=float(iqr),
                     cost_mean=float(sub["SANCTION_AMOUNT"].mean()),
                     cost_std=float(sub["SANCTION_AMOUNT"].std(ddof=1) if len(sub) > 1 else 0.0),
-                    days_sanc_median=float(sub["days_rec_to_sanction"].dropna().median() if "days_rec_to_sanction" in sub.columns and not sub["days_rec_to_sanction"].dropna().empty else 45.0),
-                    days_comp_median=float(sub["days_sanction_to_completion"].dropna().median() if "days_sanction_to_completion" in sub.columns and not sub["days_sanction_to_completion"].dropna().empty else 365.0)
+                    days_sanc_median=float(
+                        sub["days_rec_to_sanction"].dropna().median()
+                        if "days_rec_to_sanction" in sub.columns and not sub["days_rec_to_sanction"].dropna().empty
+                        else 45.0
+                    ),
+                    days_comp_median=float(
+                        sub["days_sanction_to_completion"].dropna().median()
+                        if "days_sanction_to_completion" in sub.columns
+                        and not sub["days_sanction_to_completion"].dropna().empty
+                        else 365.0
+                    ),
                 )
 
         # 3. Global baseline fallback
@@ -85,8 +106,18 @@ class BaselineEngine:
                 cost_iqr=float(max(q75 - q25, 1.0)),
                 cost_mean=float(valid_works["SANCTION_AMOUNT"].mean()),
                 cost_std=float(valid_works["SANCTION_AMOUNT"].std(ddof=1)),
-                days_sanc_median=float(valid_works["days_rec_to_sanction"].dropna().median() if "days_rec_to_sanction" in valid_works.columns and not valid_works["days_rec_to_sanction"].dropna().empty else 45.0),
-                days_comp_median=float(valid_works["days_sanction_to_completion"].dropna().median() if "days_sanction_to_completion" in valid_works.columns and not valid_works["days_sanction_to_completion"].dropna().empty else 365.0)
+                days_sanc_median=float(
+                    valid_works["days_rec_to_sanction"].dropna().median()
+                    if "days_rec_to_sanction" in valid_works.columns
+                    and not valid_works["days_rec_to_sanction"].dropna().empty
+                    else 45.0
+                ),
+                days_comp_median=float(
+                    valid_works["days_sanction_to_completion"].dropna().median()
+                    if "days_sanction_to_completion" in valid_works.columns
+                    and not valid_works["days_sanction_to_completion"].dropna().empty
+                    else 365.0
+                ),
             )
 
         return self

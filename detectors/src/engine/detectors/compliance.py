@@ -9,26 +9,27 @@ D4: Irregular lifecycle sequence (retroactive sanctions, pre-sanction disburseme
 """
 
 from typing import List, Optional
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from src.config import POLICY
-from src.engine.detectors.base import BaseDetector, Finding, AnomalyCategory
+from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
 
 
 class SanctionSLABreachDetector(BaseDetector):
     """Detects works where recommendation-to-sanction turnaround exceeds 45 days."""
 
     def __init__(self, sla_days: int = POLICY.SANCTION_SLA_DAYS):
-        super().__init__(
-            code="COMP-D1",
-            name="Sanction Turnaround SLA Breach",
-            category=AnomalyCategory.COMPLIANCE
-        )
+        super().__init__(code="COMP-D1", name="Sanction Turnaround SLA Breach", category=AnomalyCategory.COMPLIANCE)
         self.sla_days = sla_days
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
+        if df_works.empty or "days_rec_to_sanction" not in df_works.columns:
+            return []
+
         # Filter to works with valid positive recommendation-to-sanction duration
-        mask = (df_works["days_rec_to_sanction"] > self.sla_days)
+        mask = df_works["days_rec_to_sanction"] > self.sla_days
         flagged = df_works[mask]
 
         findings = []
@@ -38,10 +39,10 @@ class SanctionSLABreachDetector(BaseDetector):
             # Severity scales from 0.1 at 46 days to 0.60 at 365+ days overage (calibrated procedural SLA ceiling)
             sev = float(np.clip(0.1 + (overage / 365.0) * 0.5, 0.1, 0.60))
             conf = float(np.clip(row.get("dqi_score", 0.8), 0.3, 1.0))
-            
+
             work_id = str(row.get("WORK_ID") or row.get("WORK_RECOMMENDATION_DTL_ID"))
             rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
-            
+
             f = Finding(
                 finding_id=f"FIND-D1-{rec_id}",
                 work_id=work_id,
@@ -56,7 +57,7 @@ class SanctionSLABreachDetector(BaseDetector):
                     "statutory_limit_days": self.sla_days,
                     "overage_days": overage,
                     "recommendation_date": str(row["RECOMMENDATION_DATE"]),
-                    "sanction_date": str(row["SANCTION_DATE"])
+                    "sanction_date": str(row["SANCTION_DATE"]),
                 },
                 explanation=(
                     f"Work proposal required {int(days)} days from recommendation to sanction, "
@@ -68,7 +69,7 @@ class SanctionSLABreachDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
         return findings
@@ -78,11 +79,7 @@ class ExecutionDeadlineDetector(BaseDetector):
     """Detects works taking longer than 1 year (or 540 days for RS) to complete or reach milestone."""
 
     def __init__(self, ls_sla: int = POLICY.EXECUTION_SLA_DAYS, rs_sla: int = POLICY.RS_POST_TENURE_SLA_DAYS):
-        super().__init__(
-            code="COMP-D2",
-            name="Execution Deadline SLA Breach",
-            category=AnomalyCategory.COMPLIANCE
-        )
+        super().__init__(code="COMP-D2", name="Execution Deadline SLA Breach", category=AnomalyCategory.COMPLIANCE)
         self.ls_sla = ls_sla
         self.rs_sla = rs_sla
 
@@ -94,8 +91,12 @@ class ExecutionDeadlineDetector(BaseDetector):
         # Check completed works
         if "days_sanction_to_completion" in df_works.columns:
             completed = df_works[df_works["ACTUAL_END_DATE"].notna()].copy()
-            ls_over = completed[(completed["house"] == "LOK_SABHA") & (completed["days_sanction_to_completion"] > self.ls_sla)]
-            rs_over = completed[(completed["house"] == "RAJYA_SABHA") & (completed["days_sanction_to_completion"] > self.rs_sla)]
+            ls_over = completed[
+                (completed["house"] == "LOK_SABHA") & (completed["days_sanction_to_completion"] > self.ls_sla)
+            ]
+            rs_over = completed[
+                (completed["house"] == "RAJYA_SABHA") & (completed["days_sanction_to_completion"] > self.rs_sla)
+            ]
         else:
             ls_over = pd.DataFrame()
             rs_over = pd.DataFrame()
@@ -139,7 +140,7 @@ class ExecutionDeadlineDetector(BaseDetector):
                     "statutory_limit_days": sla,
                     "overage_days": overage,
                     "sanction_date": str(row["SANCTION_DATE"]),
-                    "completion_date": str(row["ACTUAL_END_DATE"]) if is_comp else "Not Completed"
+                    "completion_date": str(row["ACTUAL_END_DATE"]) if is_comp else "Not Completed",
                 },
                 explanation=(
                     f"Work is {status_str} with {int(duration)} days elapsed since sanction, "
@@ -151,7 +152,7 @@ class ExecutionDeadlineDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 
@@ -162,11 +163,7 @@ class StalledDisbursementDetector(BaseDetector):
     """Detects works with zero disbursement 90+ days after sanction."""
 
     def __init__(self, stall_days: int = POLICY.DISBURSEMENT_STALL_DAYS):
-        super().__init__(
-            code="COMP-D3",
-            name="Stalled Initial Disbursement",
-            category=AnomalyCategory.COMPLIANCE
-        )
+        super().__init__(code="COMP-D3", name="Stalled Initial Disbursement", category=AnomalyCategory.COMPLIANCE)
         self.stall_days = stall_days
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
@@ -174,13 +171,17 @@ class StalledDisbursementDetector(BaseDetector):
             return []
 
         # Filter to works sanctioned 90+ days ago with zero or missing disbursement and not marked completed
-        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
+        disb_s = (
+            df_works["total_disbursed"].fillna(0.0)
+            if "total_disbursed" in df_works.columns
+            else pd.Series(0.0, index=df_works.index)
+        )
         has_end = "ACTUAL_END_DATE" in df_works.columns
         mask = (
-            (df_works["SANCTION_DATE"].notna()) &
-            (df_works["days_since_sanction"] > self.stall_days) &
-            (disb_s <= 0) &
-            (df_works["ACTUAL_END_DATE"].isna() if has_end else pd.Series(True, index=df_works.index))
+            (df_works["SANCTION_DATE"].notna())
+            & (df_works["days_since_sanction"] > self.stall_days)
+            & (disb_s <= 0)
+            & (df_works["ACTUAL_END_DATE"].isna() if has_end else pd.Series(True, index=df_works.index))
         )
         flagged = df_works[mask]
 
@@ -215,7 +216,7 @@ class StalledDisbursementDetector(BaseDetector):
                     "total_disbursed": disb_float,
                     "has_expenditure_record": bool(has_exp),
                     "is_missing_expenditure": is_missing_exp,
-                    "sanction_date": str(row["SANCTION_DATE"])
+                    "sanction_date": str(row["SANCTION_DATE"]),
                 },
                 explanation=(
                     f"Work has had zero confirmed disbursements ({disb_desc}) across {int(days_stalled)} days following sanction, "
@@ -227,7 +228,7 @@ class StalledDisbursementDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 
@@ -238,16 +239,24 @@ class LifecycleLeapDetector(BaseDetector):
     """Detects irregular lifecycle sequencing (retroactive dates, disbursement before sanction)."""
 
     def __init__(self):
-        super().__init__(
-            code="COMP-D4",
-            name="Irregular Lifecycle Sequence",
-            category=AnomalyCategory.COMPLIANCE
-        )
+        super().__init__(code="COMP-D4", name="Irregular Lifecycle Sequence", category=AnomalyCategory.COMPLIANCE)
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
-        is_retro = df_works["is_retroactive_sanction"] == True if "is_retroactive_sanction" in df_works.columns else pd.Series(False, index=df_works.index)
-        is_comp = df_works["is_completion_before_sanction"] == True if "is_completion_before_sanction" in df_works.columns else pd.Series(False, index=df_works.index)
-        is_disb = df_works["is_disbursement_before_sanction"] == True if "is_disbursement_before_sanction" in df_works.columns else pd.Series(False, index=df_works.index)
+        is_retro = (
+            df_works["is_retroactive_sanction"].eq(True)
+            if "is_retroactive_sanction" in df_works.columns
+            else pd.Series(False, index=df_works.index)
+        )
+        is_comp = (
+            df_works["is_completion_before_sanction"].eq(True)
+            if "is_completion_before_sanction" in df_works.columns
+            else pd.Series(False, index=df_works.index)
+        )
+        is_disb = (
+            df_works["is_disbursement_before_sanction"].eq(True)
+            if "is_disbursement_before_sanction" in df_works.columns
+            else pd.Series(False, index=df_works.index)
+        )
         mask = is_retro | is_comp | is_disb
         flagged = df_works[mask]
 
@@ -278,7 +287,7 @@ class LifecycleLeapDetector(BaseDetector):
                     "recommendation_date": str(row["RECOMMENDATION_DATE"]),
                     "sanction_date": str(row["SANCTION_DATE"]),
                     "actual_end_date": str(row.get("ACTUAL_END_DATE")),
-                    "first_payment_date": str(row.get("first_payment_date"))
+                    "first_payment_date": str(row.get("first_payment_date")),
                 },
                 explanation=(
                     f"Lifecycle chronology violation detected: {'; '.join(details)}. "
@@ -290,7 +299,7 @@ class LifecycleLeapDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 

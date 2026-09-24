@@ -2,147 +2,152 @@
 Test Suite for Phase 1: Baselines & Core Detection Engine.
 """
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
+
 from src.engine.baselines import BaselineEngine
+from src.engine.detectors import CoreDetectionEngine
 from src.engine.detectors.compliance import (
-    SanctionSLABreachDetector,
     ExecutionDeadlineDetector,
+    SanctionSLABreachDetector,
     StalledDisbursementDetector,
 )
 from src.engine.detectors.financial import CostOverrunDetector
-from src.engine.detectors import CoreDetectionEngine
 
 
 @pytest.fixture
 def sample_works():
     """Constructs representative canonical works covering all anomaly archetypes."""
-    return pd.DataFrame([
-        # 1. Normal Completed Work
-        {
-            "WORK_RECOMMENDATION_DTL_ID": "101",
-            "WORK_ID": "W101",
-            "STATE_NAME": "DELHI",
-            "IDA_NAME": "CENTRAL DELHI",
-            "WORK_CATEGORY": "Education",
-            "SANCTION_AMOUNT": 500000.0,
-            "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
-            "SANCTION_DATE": pd.Timestamp("2025-01-20"),
-            "ACTUAL_END_DATE": pd.Timestamp("2025-06-01"),
-            "days_rec_to_sanction": 19,
-            "days_sanction_to_completion": 132,
-            "days_since_sanction": 250,
-            "total_disbursed": 500000.0,
-            "payment_count": 2,
-            "first_payment_date": pd.Timestamp("2025-02-01"),
-            "last_payment_date": pd.Timestamp("2025-05-01"),
-            "house": "LOK_SABHA",
-            "dqi_score": 0.95,
-            "ia_name": "PWD"
-        },
-        # 2. Sanction SLA Breach (90 days > 45)
-        {
-            "WORK_RECOMMENDATION_DTL_ID": "102",
-            "WORK_ID": "W102",
-            "STATE_NAME": "DELHI",
-            "IDA_NAME": "NORTH DELHI",
-            "WORK_CATEGORY": "Education",
-            "SANCTION_AMOUNT": 500000.0,
-            "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
-            "SANCTION_DATE": pd.Timestamp("2025-04-01"),
-            "ACTUAL_END_DATE": pd.NaT,
-            "days_rec_to_sanction": 90,
-            "days_sanction_to_completion": np.nan,
-            "days_since_sanction": 150,
-            "total_disbursed": 0.0,
-            "payment_count": 0,
-            "first_payment_date": pd.NaT,
-            "last_payment_date": pd.NaT,
-            "house": "LOK_SABHA",
-            "dqi_score": 0.85,
-            "ia_name": "PWD"
-        },
-        # 3. Execution Deadline Breach (500 days > 365)
-        {
-            "WORK_RECOMMENDATION_DTL_ID": "103",
-            "WORK_ID": "W103",
-            "STATE_NAME": "DELHI",
-            "IDA_NAME": "SOUTH DELHI",
-            "WORK_CATEGORY": "Roads",
-            "SANCTION_AMOUNT": 1000000.0,
-            "RECOMMENDATION_DATE": pd.Timestamp("2024-01-01"),
-            "SANCTION_DATE": pd.Timestamp("2024-02-01"),
-            "ACTUAL_END_DATE": pd.NaT,
-            "days_rec_to_sanction": 31,
-            "days_sanction_to_completion": np.nan,
-            "days_since_sanction": 500,
-            "total_disbursed": 300000.0,
-            "payment_count": 1,
-            "first_payment_date": pd.Timestamp("2024-04-01"),
-            "last_payment_date": pd.Timestamp("2024-04-01"),
-            "house": "LOK_SABHA",
-            "dqi_score": 0.90,
-            "ia_name": "CPWD"
-        },
-        # 4. Stalled Disbursement (120 days since sanction, 0 disbursed)
-        {
-            "WORK_RECOMMENDATION_DTL_ID": "104",
-            "WORK_ID": "W104",
-            "STATE_NAME": "DELHI",
-            "IDA_NAME": "EAST DELHI",
-            "WORK_CATEGORY": "Health",
-            "SANCTION_AMOUNT": 800000.0,
-            "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
-            "SANCTION_DATE": pd.Timestamp("2025-01-20"),
-            "ACTUAL_END_DATE": pd.NaT,
-            "days_rec_to_sanction": 19,
-            "days_sanction_to_completion": np.nan,
-            "days_since_sanction": 120,
-            "total_disbursed": 0.0,
-            "payment_count": 0,
-            "first_payment_date": pd.NaT,
-            "last_payment_date": pd.NaT,
-            "house": "LOK_SABHA",
-            "dqi_score": 0.88,
-            "ia_name": "MCD"
-        },
-        # 5. Cost Overrun (₹1,500,000 disbursed on ₹1,000,000 sanction = 150%)
-        {
-            "WORK_RECOMMENDATION_DTL_ID": "105",
-            "WORK_ID": "W105",
-            "STATE_NAME": "DELHI",
-            "IDA_NAME": "WEST DELHI",
-            "WORK_CATEGORY": "Roads",
-            "SANCTION_AMOUNT": 1000000.0,
-            "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
-            "SANCTION_DATE": pd.Timestamp("2025-01-20"),
-            "ACTUAL_END_DATE": pd.Timestamp("2025-08-01"),
-            "days_rec_to_sanction": 19,
-            "days_sanction_to_completion": 193,
-            "days_since_sanction": 200,
-            "total_disbursed": 1500000.0,
-            "payment_count": 3,
-            "first_payment_date": pd.Timestamp("2025-03-01"),
-            "last_payment_date": pd.Timestamp("2025-07-01"),
-            "house": "LOK_SABHA",
-            "dqi_score": 0.92,
-            "ia_name": "PWD"
-        }
-    ])
+    return pd.DataFrame(
+        [
+            # 1. Normal Completed Work
+            {
+                "WORK_RECOMMENDATION_DTL_ID": "101",
+                "WORK_ID": "W101",
+                "STATE_NAME": "DELHI",
+                "IDA_NAME": "CENTRAL DELHI",
+                "WORK_CATEGORY": "Education",
+                "SANCTION_AMOUNT": 500000.0,
+                "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
+                "SANCTION_DATE": pd.Timestamp("2025-01-20"),
+                "ACTUAL_END_DATE": pd.Timestamp("2025-06-01"),
+                "days_rec_to_sanction": 19,
+                "days_sanction_to_completion": 132,
+                "days_since_sanction": 250,
+                "total_disbursed": 500000.0,
+                "payment_count": 2,
+                "first_payment_date": pd.Timestamp("2025-02-01"),
+                "last_payment_date": pd.Timestamp("2025-05-01"),
+                "house": "LOK_SABHA",
+                "dqi_score": 0.95,
+                "ia_name": "PWD",
+            },
+            # 2. Sanction SLA Breach (90 days > 45)
+            {
+                "WORK_RECOMMENDATION_DTL_ID": "102",
+                "WORK_ID": "W102",
+                "STATE_NAME": "DELHI",
+                "IDA_NAME": "NORTH DELHI",
+                "WORK_CATEGORY": "Education",
+                "SANCTION_AMOUNT": 500000.0,
+                "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
+                "SANCTION_DATE": pd.Timestamp("2025-04-01"),
+                "ACTUAL_END_DATE": pd.NaT,
+                "days_rec_to_sanction": 90,
+                "days_sanction_to_completion": np.nan,
+                "days_since_sanction": 150,
+                "total_disbursed": 0.0,
+                "payment_count": 0,
+                "first_payment_date": pd.NaT,
+                "last_payment_date": pd.NaT,
+                "house": "LOK_SABHA",
+                "dqi_score": 0.85,
+                "ia_name": "PWD",
+            },
+            # 3. Execution Deadline Breach (500 days > 365)
+            {
+                "WORK_RECOMMENDATION_DTL_ID": "103",
+                "WORK_ID": "W103",
+                "STATE_NAME": "DELHI",
+                "IDA_NAME": "SOUTH DELHI",
+                "WORK_CATEGORY": "Roads",
+                "SANCTION_AMOUNT": 1000000.0,
+                "RECOMMENDATION_DATE": pd.Timestamp("2024-01-01"),
+                "SANCTION_DATE": pd.Timestamp("2024-02-01"),
+                "ACTUAL_END_DATE": pd.NaT,
+                "days_rec_to_sanction": 31,
+                "days_sanction_to_completion": np.nan,
+                "days_since_sanction": 500,
+                "total_disbursed": 300000.0,
+                "payment_count": 1,
+                "first_payment_date": pd.Timestamp("2024-04-01"),
+                "last_payment_date": pd.Timestamp("2024-04-01"),
+                "house": "LOK_SABHA",
+                "dqi_score": 0.90,
+                "ia_name": "CPWD",
+            },
+            # 4. Stalled Disbursement (120 days since sanction, 0 disbursed)
+            {
+                "WORK_RECOMMENDATION_DTL_ID": "104",
+                "WORK_ID": "W104",
+                "STATE_NAME": "DELHI",
+                "IDA_NAME": "EAST DELHI",
+                "WORK_CATEGORY": "Health",
+                "SANCTION_AMOUNT": 800000.0,
+                "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
+                "SANCTION_DATE": pd.Timestamp("2025-01-20"),
+                "ACTUAL_END_DATE": pd.NaT,
+                "days_rec_to_sanction": 19,
+                "days_sanction_to_completion": np.nan,
+                "days_since_sanction": 120,
+                "total_disbursed": 0.0,
+                "payment_count": 0,
+                "first_payment_date": pd.NaT,
+                "last_payment_date": pd.NaT,
+                "house": "LOK_SABHA",
+                "dqi_score": 0.88,
+                "ia_name": "MCD",
+            },
+            # 5. Cost Overrun (₹1,500,000 disbursed on ₹1,000,000 sanction = 150%)
+            {
+                "WORK_RECOMMENDATION_DTL_ID": "105",
+                "WORK_ID": "W105",
+                "STATE_NAME": "DELHI",
+                "IDA_NAME": "WEST DELHI",
+                "WORK_CATEGORY": "Roads",
+                "SANCTION_AMOUNT": 1000000.0,
+                "RECOMMENDATION_DATE": pd.Timestamp("2025-01-01"),
+                "SANCTION_DATE": pd.Timestamp("2025-01-20"),
+                "ACTUAL_END_DATE": pd.Timestamp("2025-08-01"),
+                "days_rec_to_sanction": 19,
+                "days_sanction_to_completion": 193,
+                "days_since_sanction": 200,
+                "total_disbursed": 1500000.0,
+                "payment_count": 3,
+                "first_payment_date": pd.Timestamp("2025-03-01"),
+                "last_payment_date": pd.Timestamp("2025-07-01"),
+                "house": "LOK_SABHA",
+                "dqi_score": 0.92,
+                "ia_name": "PWD",
+            },
+        ]
+    )
 
 
 def test_baseline_engine():
     # Synthetic cohort
     data = []
     for i in range(25):
-        data.append({
-            "STATE_NAME": "KERALA",
-            "WORK_CATEGORY": "Drinking Water",
-            "SANCTION_AMOUNT": 200000.0 + i * 5000.0,
-            "days_rec_to_sanction": 20 + i,
-            "days_sanction_to_completion": 150 + i
-        })
+        data.append(
+            {
+                "STATE_NAME": "KERALA",
+                "WORK_CATEGORY": "Drinking Water",
+                "SANCTION_AMOUNT": 200000.0 + i * 5000.0,
+                "days_rec_to_sanction": 20 + i,
+                "days_sanction_to_completion": 150 + i,
+            }
+        )
     df = pd.DataFrame(data)
 
     engine = BaselineEngine(min_sample_size=10)
