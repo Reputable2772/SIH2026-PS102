@@ -6,13 +6,14 @@ systemic entity recurrence, and aggregate trend tracking.
 """
 
 from typing import List, Optional
+
 import pandas as pd
+
 from src.config import NETWORK
-from src.engine.detectors.base import Finding
-from src.engine.cross_work.similarity import DuplicateWorkDetector
 from src.engine.cross_work.concentration import AgencyConcentrationDetector, VendorConcentrationDetector
 from src.engine.cross_work.recurrence import EntityRecurrenceDetector
-from src.engine.cross_work.trends import TrendAnalyzer
+from src.engine.cross_work.similarity import DuplicateWorkDetector
+from src.engine.detectors.base import Finding
 
 
 class CrossWorkIntelligenceEngine:
@@ -20,14 +21,14 @@ class CrossWorkIntelligenceEngine:
 
     def __init__(self, enable_vendor_concentration: Optional[bool] = None):
         self.enable_vendor_concentration = (
-            enable_vendor_concentration if enable_vendor_concentration is not None
+            enable_vendor_concentration
+            if enable_vendor_concentration is not None
             else getattr(NETWORK, "ENABLE_VENDOR_CONCENTRATION", False)
         )
         self.similarity_detector = DuplicateWorkDetector()
         self.agency_detector = AgencyConcentrationDetector()
         self.vendor_detector = VendorConcentrationDetector()
         self.recurrence_detector = EntityRecurrenceDetector()
-        self.trend_analyzer = TrendAnalyzer()
 
     def run(self, df_works: pd.DataFrame, prior_findings: Optional[List[Finding]] = None) -> List[Finding]:
         """Runs all Phase 2 pattern analytics; strictly deterministic, zero ML."""

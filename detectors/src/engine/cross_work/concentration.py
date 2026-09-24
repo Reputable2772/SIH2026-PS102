@@ -6,10 +6,12 @@ Implementing Agencies and Contractors/Vendors across districts.
 """
 
 from typing import List, Optional
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from src.config import NETWORK
-from src.engine.detectors.base import BaseDetector, Finding, AnomalyCategory
+from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
 
 
 class AgencyConcentrationDetector(BaseDetector):
@@ -18,13 +20,9 @@ class AgencyConcentrationDetector(BaseDetector):
     def __init__(
         self,
         hhi_threshold: float = NETWORK.HHI_HIGH_CONCENTRATION,
-        share_threshold: float = NETWORK.TOP_ENTITY_SHARE_THRESHOLD
+        share_threshold: float = NETWORK.TOP_ENTITY_SHARE_THRESHOLD,
     ):
-        super().__init__(
-            code="AGY-D13",
-            name="District Agency Monopolization",
-            category=AnomalyCategory.AGENCY
-        )
+        super().__init__(code="AGY-D13", name="District Agency Monopolization", category=AnomalyCategory.AGENCY)
         self.hhi_threshold = hhi_threshold
         self.share_threshold = share_threshold
 
@@ -43,7 +41,7 @@ class AgencyConcentrationDetector(BaseDetector):
             ia_counts = sub["ia_name"].value_counts()
             total_works = len(sub)
             shares = (ia_counts / total_works) * 100.0  # Percentage shares
-            hhi = float((shares ** 2).sum())
+            hhi = float((shares**2).sum())
 
             top_ia = ia_counts.index[0]
             top_share = float(shares.iloc[0] / 100.0)
@@ -56,7 +54,8 @@ class AgencyConcentrationDetector(BaseDetector):
                 statutory_note = (
                     " Note: High concentration observed. Reviewers should verify if local Panchayati Raj / State statutory guidelines "
                     "designate a single implementing agency (e.g. DRDA / Zila Parishad) for this jurisdiction."
-                    if is_single_agency else ""
+                    if is_single_agency
+                    else ""
                 )
                 for _, row in dominant_works.head(5).iterrows():  # Top sample works for reviewer queue
                     rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
@@ -83,7 +82,7 @@ class AgencyConcentrationDetector(BaseDetector):
                             "cr3": round(cr3, 3),
                             "agency_work_count": int(ia_counts.iloc[0]),
                             "district_total_works": total_works,
-                            "statutory_single_agency_candidate": bool(is_single_agency)
+                            "statutory_single_agency_candidate": bool(is_single_agency),
                         },
                         explanation=(
                             f"Implementing Agency '{top_ia}' monopolizes {top_share:.1%} of works in District '{district}' "
@@ -96,7 +95,7 @@ class AgencyConcentrationDetector(BaseDetector):
                         ),
                         state_name=row.get("STATE_NAME"),
                         ida_name=str(district),
-                        sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                        sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
                     )
                     findings.append(f)
 
@@ -108,20 +107,18 @@ class VendorConcentrationDetector(BaseDetector):
 
     def __init__(self, share_threshold: float = 0.50, min_vendor_works: int = 5):
         super().__init__(
-            code="VND-D14",
-            name="Vendor Payment Monopolization",
-            category=AnomalyCategory.NETWORK_SIMILARITY
+            code="VND-D14", name="Vendor Payment Monopolization", category=AnomalyCategory.NETWORK_SIMILARITY
         )
         self.share_threshold = share_threshold
         self.min_vendor_works = min_vendor_works
 
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
-        disb_s = df_works["total_disbursed"].fillna(0.0) if "total_disbursed" in df_works.columns else pd.Series(0.0, index=df_works.index)
-        valid = df_works[
-            df_works["IDA_NAME"].notna() &
-            df_works["primary_vendor"].notna() &
-            (disb_s > 0)
-        ].copy()
+        disb_s = (
+            df_works["total_disbursed"].fillna(0.0)
+            if "total_disbursed" in df_works.columns
+            else pd.Series(0.0, index=df_works.index)
+        )
+        valid = df_works[df_works["IDA_NAME"].notna() & df_works["primary_vendor"].notna() & (disb_s > 0)].copy()
 
         if valid.empty:
             return []
@@ -134,24 +131,24 @@ class VendorConcentrationDetector(BaseDetector):
             if dist_total_disb < 1000000.0 or len(sub) < 10:
                 continue
 
-            v_agg = sub.groupby("primary_vendor").agg(
-                vendor_disb=("total_disbursed", "sum"),
-                vendor_works=("WORK_RECOMMENDATION_DTL_ID", "count")
-            ).reset_index()
+            v_agg = (
+                sub.groupby("primary_vendor")
+                .agg(vendor_disb=("total_disbursed", "sum"), vendor_works=("WORK_RECOMMENDATION_DTL_ID", "count"))
+                .reset_index()
+            )
 
             v_agg["disb_share"] = v_agg["vendor_disb"] / dist_total_disb
             top_vendors = v_agg[
-                (v_agg["disb_share"] >= self.share_threshold) &
-                (v_agg["vendor_works"] >= self.min_vendor_works)
+                (v_agg["disb_share"] >= self.share_threshold) & (v_agg["vendor_works"] >= self.min_vendor_works)
             ]
 
             for _, v_row in top_vendors.iterrows():
-                v_name = str(v_row["primary_vendor"])
+                v_name = str(v_row["primary_vendor_id"])
                 v_share = float(v_row["disb_share"])
                 v_works = int(v_row["vendor_works"])
                 v_disb = float(v_row["vendor_disb"])
 
-                sample_works = sub[sub["primary_vendor"] == v_name].head(3)
+                sample_works = sub[sub["primary_vendor_id"] == v_name].head(3)
                 for _, row in sample_works.iterrows():
                     rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
                     work_id = str(row.get("WORK_ID") or rec_id)
@@ -174,7 +171,7 @@ class VendorConcentrationDetector(BaseDetector):
                             "vendor_share_pct": round(v_share * 100, 1),
                             "vendor_total_disbursed": v_disb,
                             "vendor_work_count": v_works,
-                            "district_total_disbursed": dist_total_disb
+                            "district_total_disbursed": dist_total_disb,
                         },
                         explanation=(
                             f"Vendor '{v_name}' captures {v_share:.1%} (₹{v_disb:,.0f}) of all disbursed funds in District '{district}' "
@@ -186,7 +183,7 @@ class VendorConcentrationDetector(BaseDetector):
                         ),
                         state_name=row.get("STATE_NAME"),
                         ida_name=str(district),
-                        sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                        sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
                     )
                     findings.append(f)
 
