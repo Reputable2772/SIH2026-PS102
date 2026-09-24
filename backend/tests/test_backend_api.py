@@ -245,3 +245,35 @@ def test_district_authority_can_simulate_detectors(client):
     data = res.json()
     assert "sanction_sla_breaches" in data
 
+
+def test_strict_cross_district_prevention_and_entity_scoping(client):
+    # DM Pune should receive 403 when querying cross-district or cross-state
+    cross_dist = client.get(
+        "/api/works?district=THANE",
+        headers={"X-Persona-Id": "district_authority"},
+    )
+    assert cross_dist.status_code == 403
+    assert "cross-district" in cross_dist.json()["detail"].lower()
+
+    cross_state = client.get(
+        "/api/works?state=KARNATAKA",
+        headers={"X-Persona-Id": "district_authority"},
+    )
+    assert cross_state.status_code == 403
+
+    # Scoped MPs: DM Pune receives only MPs with works in Pune
+    scoped_mps = client.get(
+        "/api/mps",
+        headers={"X-Persona-Id": "district_authority"},
+    )
+    assert scoped_mps.status_code == 200
+    assert scoped_mps.json()["total"] < 50  # Scoped to Pune, far less than 775 national MPs
+
+    # Scoped Vendors: DM Pune receives only contractors with works in Pune
+    scoped_v = client.get(
+        "/api/vendors",
+        headers={"X-Persona-Id": "district_authority"},
+    )
+    assert scoped_v.status_code == 200
+    assert scoped_v.json()["total"] < 200  # Scoped to Pune, far less than 17,773 national vendors
+

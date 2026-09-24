@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 import pandas as pd
-from backend.core.auth import get_tenant_scope
+from backend.core.auth import get_tenant_scope, validate_tenant_query
 from backend.services.data_service import DataService
 
 router = APIRouter(prefix="/works", tags=["Canonical Works"])
@@ -27,6 +27,9 @@ def search_works(
     scope: Dict[str, Any] = Depends(get_tenant_scope),
 ):
     """Searches and filters across 102k+ canonical projects, automatically scoped to active tenant."""
+    # Enforce strict multi-tenant boundary
+    validate_tenant_query(scope, state=state, district=district, mp_name=mp_name)
+
     ds = DataService.get_instance()
     return ds.query_works(
         scope=scope,

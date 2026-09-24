@@ -221,3 +221,55 @@ def get_tenant_scope(user: UserProfile = Depends(get_current_user)) -> Dict[str,
             scope["MP_NAME"] = user.mp_name
 
     return scope
+
+
+def validate_tenant_query(
+    scope: Dict[str, Any],
+    state: Optional[str] = None,
+    district: Optional[str] = None,
+    mp_name: Optional[str] = None,
+) -> None:
+    """
+    Enforces strict tenant boundaries. Raises HTTP 403 Forbidden
+    if a localized persona attempts cross-district, cross-state, or cross-MP querying.
+    """
+    if not scope or not scope.get("strict_isolation", True):
+        return  # Central auditor or unisolated sandbox mode allows nationwide queries
+
+    role = scope.get("role")
+
+    if role == UserRole.DISTRICT_AUTHORITY:
+        user_state = str(scope.get("STATE_NAME", "")).upper()
+        user_ida = str(scope.get("IDA_NAME", "")).upper()
+
+        if state and state.strip().upper() != user_state:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: As District Magistrate of {user_ida} ({user_state}), querying projects in '{state}' is strictly prohibited under statutory RBAC.",
+            )
+
+        if district:
+            d_clean = district.strip().upper()
+            if user_ida and (user_ida not in d_clean and d_clean not in user_ida):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access Denied: As District Magistrate of {user_ida}, cross-district query for '{district}' is strictly prohibited under statutory RBAC.",
+                )
+
+    elif role == UserRole.STATE_NODAL_OFFICER:
+        user_state = str(scope.get("STATE_NAME", "")).upper()
+        if state and state.strip().upper() != user_state:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: State Nodal Officer of {user_state} cannot query state '{state}' under statutory RBAC.",
+            )
+
+    elif role == UserRole.MP_USER:
+        user_mp = str(scope.get("MP_NAME", "")).lower()
+        if mp_name:
+            mp_toks = [t.lower() for t in str(mp_name).split() if len(t) > 2]
+            if mp_toks and not all(t in user_mp for t in mp_toks):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access Denied: Member of Parliament is restricted to their parliamentary constituency portfolio.",
+                )
