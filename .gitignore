@@ -16,6 +16,8 @@ env/
 # Scraped raw data & attachments
 *.csv
 *.json
+!frontend/package.json
+!frontend/tsconfig*.json
 !*.lock
 attachments/
 /data/
@@ -28,3 +30,5 @@ reports/
 scripts/
 
 frontend/node_modules/*
+frontend/dist/
+*.tsbuildinfo
