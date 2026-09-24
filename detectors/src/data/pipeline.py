@@ -7,11 +7,13 @@ and quality scoring into the canonical analytical DataFrame.
 
 from pathlib import Path
 from typing import Tuple
+
 import pandas as pd
+
 from src.config import DATA_DIR, PROCESSED_DIR
+from src.data.lifecycle import WorkLifecycleReconstructor
 from src.data.loader import DataLoader
 from src.data.normalizer import DataNormalizer
-from src.data.lifecycle import WorkLifecycleReconstructor
 from src.data.quality import DataQualityAuditor
 
 
@@ -42,7 +44,7 @@ class DataPipeline:
             df_sanctioned=ls_norm["sanctioned"],
             df_expenditures=ls_norm["expenditures"],
             df_completed=ls_norm["completed"],
-            house="LOK_SABHA"
+            house="LOK_SABHA",
         )
 
         # Load Rajya Sabha
@@ -53,7 +55,7 @@ class DataPipeline:
             df_sanctioned=rs_norm["sanctioned"],
             df_expenditures=rs_norm["expenditures"],
             df_completed=rs_norm["completed"],
-            house="RAJYA_SABHA"
+            house="RAJYA_SABHA",
         )
 
         # Combine national dataset

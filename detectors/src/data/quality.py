@@ -5,8 +5,8 @@ Evaluates field completeness, computes the Data Quality Index (DQI) per record,
 and generates the national 36 State/UT coverage matrix across parliamentary chambers.
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 class DataQualityAuditor:
@@ -28,17 +28,17 @@ class DataQualityAuditor:
         has_rec_id = df["WORK_RECOMMENDATION_DTL_ID"].notna().astype(float)
         has_state = df["STATE_NAME"].notna().astype(float)
         has_ida = df["IDA_NAME"].notna().astype(float)
-        id_score = (has_rec_id * 0.5 + has_state * 0.25 + has_ida * 0.25)
+        id_score = has_rec_id * 0.5 + has_state * 0.25 + has_ida * 0.25
 
         # 2. Date integrity (valid non-negative timeline transitions)
         has_sanc_date = df["SANCTION_DATE"].notna().astype(float)
         valid_rec_sanc = (df["days_rec_to_sanction"].fillna(0) >= 0).astype(float)
-        date_score = (has_sanc_date * 0.5 + valid_rec_sanc * 0.5)
+        date_score = has_sanc_date * 0.5 + valid_rec_sanc * 0.5
 
         # 3. Financial validity
         valid_sanc_amt = (df["SANCTION_AMOUNT"] > 0).astype(float)
         non_negative_disb = (df["total_disbursed"].isna() | (df["total_disbursed"] >= 0)).astype(float)
-        fin_score = (valid_sanc_amt * 0.6 + non_negative_disb * 0.4)
+        fin_score = valid_sanc_amt * 0.6 + non_negative_disb * 0.4
 
         # 4. Descriptive richness
         desc_len = df["WORK_DESCRIPTION"].fillna("").astype(str).str.len()
@@ -61,10 +61,12 @@ class DataQualityAuditor:
             total_disbursed_amt=("total_disbursed", lambda s: s.dropna().sum()),
             avg_dqi=("dqi_score", "mean"),
             missing_rec_date_pct=("RECOMMENDATION_DATE", lambda s: s.isna().mean() * 100),
-            missing_sanc_date_pct=("SANCTION_DATE", lambda s: s.isna().mean() * 100)
+            missing_sanc_date_pct=("SANCTION_DATE", lambda s: s.isna().mean() * 100),
         ).reset_index()
 
         cov["completion_rate_pct"] = (cov["completed_works"] / np.maximum(cov["total_works"], 1) * 100).round(1)
-        cov["utilization_rate_pct"] = (cov["total_disbursed_amt"] / np.maximum(cov["total_sanctioned_amt"], 1.0) * 100).round(1)
+        cov["utilization_rate_pct"] = (
+            cov["total_disbursed_amt"] / np.maximum(cov["total_sanctioned_amt"], 1.0) * 100
+        ).round(1)
         cov["avg_dqi"] = cov["avg_dqi"].round(3)
         return cov

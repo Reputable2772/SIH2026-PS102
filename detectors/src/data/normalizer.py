@@ -6,6 +6,7 @@ cleans financial amounts, and normalizes primary and foreign keys.
 """
 
 from typing import List, Optional
+
 import pandas as pd
 
 
@@ -19,7 +20,7 @@ class DataNormalizer:
         "ACTUAL_END_DATE",
         "TENURE_START_DATE",
         "TENURE_END_DATE",
-        "CRT_DT"
+        "CRT_DT",
     ]
 
     AMOUNT_COLUMNS = [
@@ -28,7 +29,7 @@ class DataNormalizer:
         "FUND_DISBURSED_AMT",
         "ACTUAL_AMOUNT",
         "ALLOCATED_AMT",
-        "CONSENTED_AMOUNT"
+        "CONSENTED_AMOUNT",
     ]
 
     TEXT_COLUMNS = [
@@ -40,17 +41,10 @@ class DataNormalizer:
         "IA_NAME",
         "VENDOR_NAME",
         "MP_NAME",
-        "CONSTITUENCY"
+        "CONSTITUENCY",
     ]
 
-    ID_COLUMNS = [
-        "WORK_RECOMMENDATION_DTL_ID",
-        "WORK_ID",
-        "VENDOR_ID",
-        "CONSTITUENCY_ID",
-        "STATE_ID",
-        "DISTRICT_ID"
-    ]
+    ID_COLUMNS = ["WORK_RECOMMENDATION_DTL_ID", "WORK_ID", "VENDOR_ID", "CONSTITUENCY_ID", "STATE_ID", "DISTRICT_ID"]
 
     @staticmethod
     def parse_dates(df: pd.DataFrame, cols: Optional[List[str]] = None) -> pd.DataFrame:
