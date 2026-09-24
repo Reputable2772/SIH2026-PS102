@@ -30,7 +30,6 @@ export const DetectorsPage: React.FC = () => {
   useEffect(() => {
     api.getDetectors().then((data) => {
       setDetectors(data);
-      if (data.length > 0) setSelectedDetector(data[0]);
       setLoading(false);
     });
 
