@@ -20,6 +20,8 @@ def search_works(
     mp_name: Optional[str] = Query(None, description="MP filter"),
     category: Optional[str] = Query(None, description="Work category filter"),
     priority: Optional[str] = Query(None, description="Priority tier: CRITICAL, HIGH, MEDIUM, LOW"),
+    sort_by: Optional[str] = Query(None, description="Sort column: priority, sanction_amount, total_disbursed, days_rec_to_sanction, work_rec_id"),
+    sort_order: Optional[str] = Query("desc", description="Sort direction: asc or desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     scope: Dict[str, Any] = Depends(get_tenant_scope),
@@ -34,6 +36,8 @@ def search_works(
         mp_name=mp_name,
         category=category,
         priority=priority,
+        sort_by=sort_by,
+        sort_order=sort_order,
         page=page,
         page_size=page_size,
     )

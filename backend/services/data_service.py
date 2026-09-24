@@ -34,6 +34,16 @@ class DataService:
             if col in self.df_works.columns:
                 self.df_works[col] = pd.to_numeric(self.df_works[col], errors="coerce").fillna(0.0)
 
+        # Classify realistic functional sector categories across all works
+        act_series = self.df_works["ACTIVITY_NAME"] if "ACTIVITY_NAME" in self.df_works.columns else pd.Series([""] * len(self.df_works))
+        desc_series = self.df_works["WORK_DESCRIPTION"] if "WORK_DESCRIPTION" in self.df_works.columns else pd.Series([""] * len(self.df_works))
+        cat_series = self.df_works["WORK_CATEGORY"] if "WORK_CATEGORY" in self.df_works.columns else pd.Series([""] * len(self.df_works))
+
+        self.df_works["WORK_CATEGORY"] = [
+            self._classify_functional_category(a, d, c)
+            for a, d, c in zip(act_series, desc_series, cat_series)
+        ]
+
         # 2. Compute Priority & Rule Tags if missing
         if "priority" not in self.df_works.columns:
             self._precompute_priorities()
@@ -53,6 +63,30 @@ class DataService:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @staticmethod
+    def _classify_functional_category(activity: Any, desc: Any, existing_cat: Any) -> str:
+        s = f"{activity} {desc}".lower()
+        if any(k in s for k in ["road", "pathway", "culvert", "pavement", "bridge", "cc road", "link road", "rcc drain"]):
+            return "Roads & Pathways"
+        if any(k in s for k in ["water", "tanker", "borewell", "ro plant", "pipeline", "hand pump", "drinking", "jal"]):
+            return "Drinking Water"
+        if any(k in s for k in ["solar", "street light", "led", "high mast", "lighting", "light"]):
+            return "Solar & Lighting"
+        if any(k in s for k in ["school", "class", "anganwadi", "library", "college", "education", "vidyalaya", "reading"]):
+            return "Education & Schools"
+        if any(k in s for k in ["health", "hospital", "dispensary", "ambulance", "phc", "chc", "medical", "clinic", "ayush"]):
+            return "Public Health"
+        if any(k in s for k in ["community center", "community hall", "multipurpose", "gym", "hall", "crematorium", "burial", "samudayik", "shed"]):
+            return "Community Infrastructure"
+        if any(k in s for k in ["drain", "drainage", "toilet", "sanitation", "swachh", "sewerage", "shauchalaya"]):
+            return "Sanitation & Drainage"
+        if any(k in s for k in ["dam", "bund", "canal", "irrigation", "flood", "pond", "lake", "check dam"]):
+            return "Irrigation & Water Conservation"
+        ex = str(existing_cat).strip()
+        if ex and ex.lower() not in ["normal/others", "nan", "none", "others", ""]:
+            return ex
+        return "Public Amenities"
 
     def _precompute_priorities(self):
         """Precomputes fast two-axis risk tiers across works."""
@@ -358,10 +392,12 @@ class DataService:
         mp_name: Optional[str] = None,
         category: Optional[str] = None,
         priority: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = "desc",
         page: int = 1,
         page_size: int = 25,
     ) -> Dict[str, Any]:
-        """Search and filter works with multi-tenant boundaries."""
+        """Search and filter works with multi-tenant boundaries and dynamic column sorting."""
         df = self.apply_tenant_filter(self.df_works, scope)
 
         if state:
@@ -388,6 +424,28 @@ class DataService:
                 df["IDA_NAME"].astype(str).str.lower().str.contains(q_lower, na=False)
             )
             df = df[mask]
+
+        # Dynamic Sorting
+        if sort_by:
+            ascending = (str(sort_order).lower() == "asc")
+            s_by = str(sort_by).lower()
+            if s_by == "priority":
+                prio_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
+                df = df.copy()
+                df["_prio_rank"] = df["priority"].map(prio_order).fillna(0)
+                df = df.sort_values(by="_prio_rank", ascending=ascending)
+            elif s_by in ["sanction_amount", "amount", "budget", "financials"]:
+                df = df.sort_values(by="SANCTION_AMOUNT", ascending=ascending)
+            elif s_by in ["total_disbursed", "disbursed"]:
+                df = df.sort_values(by="total_disbursed", ascending=ascending)
+            elif s_by in ["days_rec_to_sanction", "turnaround", "sla", "sla_turnaround"]:
+                df = df.sort_values(by="days_rec_to_sanction", ascending=ascending)
+            elif s_by in ["work_rec_id", "rec_id", "id"]:
+                df = df.sort_values(by="WORK_RECOMMENDATION_DTL_ID", ascending=ascending)
+            elif s_by in ["category", "work_category"]:
+                df = df.sort_values(by="WORK_CATEGORY", ascending=ascending)
+            elif s_by in df.columns:
+                df = df.sort_values(by=s_by, ascending=ascending)
 
         total_matching = len(df)
         start = (page - 1) * page_size
