@@ -3,61 +3,64 @@ Tests for decoupled high-level MPLADSEngine coordinator and DetectionResultSet.
 Ensures zero coupling between core analytical engine and CLI / UI layers.
 """
 
-import pytest
-import pandas as pd
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from src.engine import MPLADSEngine, DetectionResultSet
+import pandas as pd
+import pytest
+
+from src.engine import DetectionResultSet, MPLADSEngine
 
 
 @pytest.fixture
 def sample_works_df():
     """Provides a synthetic canonical works DataFrame for facade testing."""
-    return pd.DataFrame([
-        {
-            "WORK_RECOMMENDATION_DTL_ID": "REC_001",
-            "WORK_ID": "W001",
-            "STATE_NAME": "MAHARASHTRA",
-            "IDA_NAME": "PUNE",
-            "WORK_CATEGORY": "ROADS",
-            "WORK_DESCRIPTION": "Construction of asphalt road connecting village sector 4 to main highway",
-            "SANCTION_AMOUNT": 1000000.0,
-            "total_disbursed": 1200000.0,
-            "RECOMMENDATION_DATE": "2023-05-01",
-            "SANCTION_DATE": "2023-07-01",  # 61 days > 45d limit -> COMP-D1
-            "ACTUAL_END_DATE": None,
-            "days_rec_to_sanction": 61,
-            "days_since_sanction": 400,
-            "days_sanction_to_completion": None,
-            "house": "LOK_SABHA",
-            "lifecycle_stage": "EXECUTION",
-            "ia_name": "PWD_PUNE",
-            "primary_vendor": "ROAD_CORP",
-            "dqi_score": 0.95
-        },
-        {
-            "WORK_RECOMMENDATION_DTL_ID": "REC_002",
-            "WORK_ID": "W002",
-            "STATE_NAME": "MAHARASHTRA",
-            "IDA_NAME": "PUNE",
-            "WORK_CATEGORY": "ROADS",
-            "WORK_DESCRIPTION": "Installation of community solar lighting units across public garden",
-            "SANCTION_AMOUNT": 500000.0,
-            "total_disbursed": 450000.0,
-            "RECOMMENDATION_DATE": "2023-05-01",
-            "SANCTION_DATE": "2023-05-20",
-            "ACTUAL_END_DATE": "2023-11-01",
-            "days_rec_to_sanction": 19,
-            "days_since_sanction": 500,
-            "days_sanction_to_completion": 164,
-            "house": "LOK_SABHA",
-            "lifecycle_stage": "COMPLETED",
-            "ia_name": "PWD_PUNE",
-            "primary_vendor": "LOCAL_BUILDERS",
-            "dqi_score": 1.0
-        }
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "WORK_RECOMMENDATION_DTL_ID": "REC_001",
+                "WORK_ID": "W001",
+                "STATE_NAME": "MAHARASHTRA",
+                "IDA_NAME": "PUNE",
+                "WORK_CATEGORY": "ROADS",
+                "WORK_DESCRIPTION": "Construction of asphalt road connecting village sector 4 to main highway",
+                "SANCTION_AMOUNT": 1000000.0,
+                "total_disbursed": 1200000.0,
+                "RECOMMENDATION_DATE": "2023-05-01",
+                "SANCTION_DATE": "2023-07-01",  # 61 days > 45d limit -> COMP-D1
+                "ACTUAL_END_DATE": None,
+                "days_rec_to_sanction": 61,
+                "days_since_sanction": 400,
+                "days_sanction_to_completion": None,
+                "house": "LOK_SABHA",
+                "lifecycle_stage": "EXECUTION",
+                "ia_name": "PWD_PUNE",
+                "primary_vendor": "ROAD_CORP",
+                "dqi_score": 0.95,
+            },
+            {
+                "WORK_RECOMMENDATION_DTL_ID": "REC_002",
+                "WORK_ID": "W002",
+                "STATE_NAME": "MAHARASHTRA",
+                "IDA_NAME": "PUNE",
+                "WORK_CATEGORY": "ROADS",
+                "WORK_DESCRIPTION": "Installation of community solar lighting units across public garden",
+                "SANCTION_AMOUNT": 500000.0,
+                "total_disbursed": 450000.0,
+                "RECOMMENDATION_DATE": "2023-05-01",
+                "SANCTION_DATE": "2023-05-20",
+                "ACTUAL_END_DATE": "2023-11-01",
+                "days_rec_to_sanction": 19,
+                "days_since_sanction": 500,
+                "days_sanction_to_completion": 164,
+                "house": "LOK_SABHA",
+                "lifecycle_stage": "COMPLETED",
+                "ia_name": "PWD_PUNE",
+                "primary_vendor": "LOCAL_BUILDERS",
+                "dqi_score": 1.0,
+            },
+        ]
+    )
 
 
 def test_engine_detect_decoupled_flow(sample_works_df):

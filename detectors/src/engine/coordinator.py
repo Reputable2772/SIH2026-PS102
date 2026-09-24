@@ -10,29 +10,31 @@ Any user interface, CLI, background job, or third-party service can import and i
 with this engine without depending on argparse, terminal formatters, or web servers.
 """
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union
-import json
+from typing import Any, Dict, List, Optional, Union
+
 import pandas as pd
 
-from src.config import PROCESSED_DIR, MODELS_DIR
+from src.config import MODELS_DIR, PROCESSED_DIR
 from src.data.pipeline import DataPipeline
 from src.engine.baselines import BaselineEngine
-from src.engine.detectors import CoreDetectionEngine, AnomalyFinding
 from src.engine.cross_work import CrossWorkIntelligenceEngine
+from src.engine.cross_work.trends import TrendAnalyzer
+from src.engine.detectors import AnomalyFinding, CoreDetectionEngine
+from src.engine.reporting.html_report import generate_audit_report_html, generate_dossier_html
 from src.engine.risk.composite_scorer import CompositeRiskScorer, WorkRiskScore
 from src.engine.risk.dossier import DossierBuilder, GovernanceDossier
-from src.validation.injection import AnomalyInjectionTester
 from src.validation.benchmark import HistoricalAuditBenchmark
 from src.validation.coverage_bias import CoverageBiasAuditor
-from src.engine.cross_work.trends import TrendAnalyzer
-from src.engine.reporting.html_report import generate_audit_report_html, generate_dossier_html
+from src.validation.injection import AnomalyInjectionTester
 
 
 @dataclass
 class DetectionResultSet:
     """Encapsulates the complete results of an anomaly detection and risk scoring run."""
+
     works: pd.DataFrame
     scores: List[WorkRiskScore]
     findings: List[AnomalyFinding]
@@ -52,22 +54,26 @@ class DetectionResultSet:
         filtered = self.scores
         if priority:
             p_upper = priority.upper()
-            filtered = [s for s in filtered if (s.priority.value if hasattr(s.priority, "value") else str(s.priority)).upper() == p_upper]
+            filtered = [
+                s
+                for s in filtered
+                if (s.priority.value if hasattr(s.priority, "value") else str(s.priority)).upper() == p_upper
+            ]
         else:
             # By default prioritize critical and high
-            filtered = [s for s in filtered if (s.priority.value if hasattr(s.priority, "value") else str(s.priority)).upper() in {"CRITICAL", "HIGH", "MEDIUM"}]
+            filtered = [
+                s
+                for s in filtered
+                if (s.priority.value if hasattr(s.priority, "value") else str(s.priority)).upper()
+                in {"CRITICAL", "HIGH", "MEDIUM"}
+            ]
             if not filtered:
                 filtered = self.scores
 
         return sorted(
             filtered,
-            key=lambda x: (
-                x.composite_severity,
-                x.composite_confidence,
-                len(x.category_severities),
-                x.findings_count
-            ),
-            reverse=True
+            key=lambda x: (x.composite_severity, x.composite_confidence, len(x.category_severities), x.findings_count),
+            reverse=True,
         )[:n]
 
     def get_dossier(self, work_rec_id: Any) -> GovernanceDossier:
@@ -84,19 +90,21 @@ class DetectionResultSet:
         for s in self.scores:
             f_codes = [f.detector_code for f in s.findings]
             action = s.findings[0].next_review_action if s.findings else "None"
-            rows.append({
-                "work_rec_id": s.work_rec_id,
-                "work_id": s.work_id,
-                "state_name": s.state_name,
-                "ida_name": s.ida_name,
-                "sanction_amount": s.sanction_amount,
-                "priority": s.priority.value if hasattr(s.priority, "value") else str(s.priority),
-                "composite_severity": s.composite_severity,
-                "composite_confidence": s.composite_confidence,
-                "findings_count": len(s.findings),
-                "anomaly_codes": ",".join(f_codes),
-                "next_review_action": action
-            })
+            rows.append(
+                {
+                    "work_rec_id": s.work_rec_id,
+                    "work_id": s.work_id,
+                    "state_name": s.state_name,
+                    "ida_name": s.ida_name,
+                    "sanction_amount": s.sanction_amount,
+                    "priority": s.priority.value if hasattr(s.priority, "value") else str(s.priority),
+                    "composite_severity": s.composite_severity,
+                    "composite_confidence": s.composite_confidence,
+                    "findings_count": len(s.findings),
+                    "anomaly_codes": ",".join(f_codes),
+                    "next_review_action": action,
+                }
+            )
         return pd.DataFrame(rows)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -114,10 +122,10 @@ class DetectionResultSet:
                     "priority": s.priority.value if hasattr(s.priority, "value") else str(s.priority),
                     "composite_severity": s.composite_severity,
                     "composite_confidence": s.composite_confidence,
-                    "findings": [f.to_dict() for f in s.findings]
+                    "findings": [f.to_dict() for f in s.findings],
                 }
                 for s in self.scores
-            ]
+            ],
         }
 
     def export_json(self, output_path: Union[str, Path]) -> str:
@@ -133,7 +141,9 @@ class DetectionResultSet:
         """Exports an interactive, self-contained HTML audit dashboard."""
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        html_content = generate_audit_report_html(self, title=title or "MPLADS Intelligence Engine — Audit Findings Report")
+        html_content = generate_audit_report_html(
+            self, title=title or "MPLADS Intelligence Engine — Audit Findings Report"
+        )
         with open(path, "w", encoding="utf-8") as f:
             f.write(html_content)
         return str(path)
@@ -149,9 +159,10 @@ class MPLADSEngine:
         self,
         data_dir: Optional[Path] = None,
         models_dir: Optional[Path] = None,
-        enable_vendor_concentration: Optional[bool] = None
+        enable_vendor_concentration: Optional[bool] = None,
     ):
         from src.ml.integration import MLIntegrationManager
+
         self.data_dir = data_dir or PROCESSED_DIR
         self.models_dir = models_dir or MODELS_DIR
         self.ml_manager = MLIntegrationManager(models_dir=self.models_dir)
@@ -187,7 +198,7 @@ class MPLADSEngine:
         works: Optional[pd.DataFrame] = None,
         sample_size: Optional[int] = None,
         include_cross_work: bool = True,
-        include_ml: bool = True
+        include_ml: bool = True,
     ) -> DetectionResultSet:
         """
         Executes the full anomaly detection and risk scoring pipeline.
@@ -219,18 +230,10 @@ class MPLADSEngine:
         else:
             scores = self.composite_scorer.score_works(works, all_findings)
 
-        return DetectionResultSet(
-            works=works,
-            scores=scores,
-            findings=all_findings,
-            ml_metadata=ml_metadata
-        )
+        return DetectionResultSet(works=works, scores=scores, findings=all_findings, ml_metadata=ml_metadata)
 
     def generate_dossier(
-        self,
-        work_rec_id: Any,
-        works: Optional[pd.DataFrame] = None,
-        include_ml: bool = True
+        self, work_rec_id: Any, works: Optional[pd.DataFrame] = None, include_ml: bool = True
     ) -> GovernanceDossier:
         """
         Synthesizes the complete 5-question audit dossier for a specific work.
@@ -243,27 +246,12 @@ class MPLADSEngine:
         if target_work.empty:
             raise ValueError(f"Work with recommendation ID '{rec_id_str}' not found in canonical dataset.")
 
-        # Run detection specifically on target work
-        self.core_detection_engine.fit_baselines(works)
-        findings = self.core_detection_engine.run(target_work)
-
-        cross_findings = self.cross_work_engine.run(target_work, prior_findings=findings)
-        all_findings = list(findings) + list(cross_findings)
-
-        if include_ml and self.ml_manager.load_models():
-            ml_findings = self.ml_manager.generate_ml_findings(target_work)
-            all_findings.extend(ml_findings)
-            scores = self.ml_manager.score_works_integrated(target_work, all_findings, ml_findings)
-        else:
-            scores = self.composite_scorer.score_works(target_work, all_findings)
-
-        return DossierBuilder.build_dossier(scores[0])
+        # Execute detection over population cohort to maintain statistical peer baselines & cross-work network context
+        results = self.detect(works=works, include_ml=include_ml)
+        return results.get_dossier(rec_id_str)
 
     def export_dossier(
-        self,
-        dossier: GovernanceDossier,
-        format: str = "html",
-        output_path: Optional[Union[str, Path]] = None
+        self, dossier: GovernanceDossier, format: str = "html", output_path: Optional[Union[str, Path]] = None
     ) -> str:
         """Exports an individual case dossier to HTML or JSON."""
         format_lower = format.lower()
@@ -282,7 +270,9 @@ class MPLADSEngine:
             return str(p)
         return content
 
-    def train_ml_models(self, works: Optional[pd.DataFrame] = None, sample_size: Optional[int] = None) -> Dict[str, Any]:
+    def train_ml_models(
+        self, works: Optional[pd.DataFrame] = None, sample_size: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Trains Phase 4 ML models on real MPLADS data and persists artifacts."""
         if works is None:
             works = self.load_data(sample_size=sample_size)
@@ -317,10 +307,10 @@ class MPLADSEngine:
             pass
 
         all_passed = (
-            mono_res.get("status") == "PASS" and
-            cost_res.get("status") == "PASS" and
-            bench_res.get("status") == "PASS" and
-            bias_res.get("status") == "PASS"
+            mono_res.get("status") == "PASS"
+            and cost_res.get("status") == "PASS"
+            and bench_res.get("status") == "PASS"
+            and bias_res.get("status") == "PASS"
         )
 
         return {
@@ -328,7 +318,7 @@ class MPLADSEngine:
             "monotonicity_injection": mono_res,
             "cost_sensitivity_injection": cost_res,
             "historical_cag_benchmark": bench_res,
-            "coverage_bias_audit": bias_res
+            "coverage_bias_audit": bias_res,
         }
 
     def analyze_trends(self, works: Optional[pd.DataFrame] = None) -> pd.DataFrame:

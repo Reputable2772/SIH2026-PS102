@@ -7,16 +7,19 @@ validation audits, and interactive HTML report generation.
 """
 
 import argparse
+import json
 import sys
 import webbrowser
 from pathlib import Path
-_base = Path.cwd()
-for _dir in [str(_base / "detectors"), str(_base)]:
+
+_this_dir = Path(__file__).resolve().parent.parent
+_repo_root = _this_dir.parent
+for _dir in [str(_this_dir), str(_repo_root)]:
     if _dir not in sys.path:
         sys.path.insert(0, _dir)
 
-from src.engine import MPLADSEngine
 from src.data.pipeline import DataPipeline
+from src.engine import MPLADSEngine
 
 
 def get_engine() -> MPLADSEngine:
@@ -45,7 +48,7 @@ def cmd_pipeline(args):
     print(f"\nSuccessfully reconstructed {len(works):,} canonical works across {len(cov)} state/chamber cohorts.")
     print("\nLifecycle Stage Breakdown:")
     for stage, count in works["lifecycle_stage"].value_counts().items():
-        print(f"  - {stage:<15}: {count:>7,} works ({count/len(works):.1%})")
+        print(f"  - {stage:<15}: {count:>7,} works ({count / len(works):.1%})")
 
 
 def cmd_detect(args):
@@ -71,15 +74,19 @@ def cmd_detect(args):
     top_cases = results.top_cases(n=args.top)
     print(f"\nTop {len(top_cases)} Prioritized Cases for Human Oversight:")
     print("-" * 95)
-    print(f"{'REC ID':<12} | {'STATE':<15} | {'PRIORITY':<8} | {'SEV':<5} | {'CONF':<5} | {'SANCTION (₹)':<12} | {'ANOMALIES'}")
+    print(
+        f"{'REC ID':<12} | {'STATE':<15} | {'PRIORITY':<8} | {'SEV':<5} | {'CONF':<5} | {'SANCTION (₹)':<12} | {'ANOMALIES'}"
+    )
     print("-" * 95)
     for s in top_cases:
         f_codes = [f.detector_code for f in s.findings]
         codes = ",".join(f_codes[:3])
         if len(f_codes) > 3:
-            codes += f" (+{len(f_codes)-3})"
+            codes += f" (+{len(f_codes) - 3})"
         sanc = f"₹{s.sanction_amount:,.0f}" if s.sanction_amount else "N/A"
-        print(f"{s.work_rec_id:<12} | {str(s.state_name)[:15]:<15} | {s.priority.value:<8} | {s.composite_severity:<5.2f} | {s.composite_confidence:<5.2f} | {sanc:<12} | {codes}")
+        print(
+            f"{s.work_rec_id:<12} | {str(s.state_name)[:15]:<15} | {s.priority.value:<8} | {s.composite_severity:<5.2f} | {s.composite_confidence:<5.2f} | {sanc:<12} | {codes}"
+        )
     print("-" * 95)
     print("Use `python -m src.cli dossier <WORK_REC_ID>` to inspect any case dossier.")
 
@@ -149,7 +156,7 @@ def cmd_train_ml(args):
     engine = get_engine()
     sample_size = args.sample
 
-    print(f"=== [PHASE 4] Training ML Models on Real MPLADS Data (sample: {sample_size or 'all'}) ===")
+    print(f"=== [PHASE 4] Training ML Models on Real MPLADS Data (sample: {sample_size or 'all (102,087 works)'}) ===")
     metadata = engine.train_ml_models(sample_size=sample_size)
 
     print("\n=== Model Training Complete & Artifacts Persisted ===")
@@ -159,7 +166,7 @@ def cmd_train_ml(args):
     print(f"  - Holdout AUC-ROC: {b_meta.get('auc_roc', 0):.4f}")
     print(f"  - Holdout PR-AUC: {b_meta.get('pr_auc', 0):.4f}")
     print(f"  - Precision: {b_meta.get('precision', 0):.4f} | Recall: {b_meta.get('recall', 0):.4f}")
-    print(f"  - Models saved to: models/anomaly_ensemble.joblib, models/breach_predictor.joblib")
+    print("  - Models saved to: models/anomaly_ensemble.joblib, models/breach_predictor.joblib")
 
 
 def cmd_validate(args):
@@ -177,13 +184,17 @@ def cmd_validate(args):
     # 2. Cost Sensitivity
     cost = report["cost_sensitivity_injection"]
     print("\n2. Testing Cost Outlier Sensitivity (AC-13)...")
-    print(f"   Status: {cost['status']} (FIN-D5 triggered: {cost['has_fin_d5_finding']}, Priority: {cost['outlier_priority']})")
+    print(
+        f"   Status: {cost['status']} (FIN-D5 triggered: {cost['has_fin_d5_finding']}, Priority: {cost['outlier_priority']})"
+    )
 
     # 3. Historical CAG Benchmark Recall
     bench = report["historical_cag_benchmark"]
     print("\n3. Testing Historical CAG Report 31 & Parliamentary Q44 Benchmark (AC-16)...")
     print(f"   Status: {bench['status']}")
-    print(f"   Empirical Recall: {bench['recall_pct']}% | Precision: {bench['precision_pct']}% | F1: {bench['f1_score']}")
+    print(
+        f"   Empirical Recall: {bench['recall_pct']}% | Precision: {bench['precision_pct']}% | F1: {bench['f1_score']}"
+    )
     print(f"   {bench['summary']}")
 
     # 4. State Coverage-Bias Check
@@ -206,8 +217,7 @@ def cmd_trends(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="mplads-engine",
-        description="SIH PS102 — MPLADS e-SAKSHI Autonomous Analytical & Intelligence Core."
+        prog="mplads-engine", description="SIH PS102 — MPLADS e-SAKSHI Autonomous Analytical & Intelligence Core."
     )
     subparsers = parser.add_subparsers(dest="command", help="Available engine commands")
 
@@ -217,29 +227,67 @@ def main():
 
     # detect
     p_det = subparsers.add_parser("detect", help="Run anomaly detection and rank prioritized review cases")
-    p_det.add_argument("--sample", type=int, default=10000, help="Number of works to analyze (default: 10000, use 0 for all)")
+    p_det.add_argument(
+        "--sample", type=int, default=10000, help="Number of works to analyze (default: 10000, use 0 for all)"
+    )
     p_det.add_argument("--top", type=int, default=15, help="Number of top critical cases to display")
     p_det.add_argument("--no-ml", action="store_true", help="Disable Phase 4 ML integration")
-    p_det.add_argument("--export-html", type=str, default=None, help="Export interactive HTML audit dashboard to file")
-    p_det.add_argument("--export-json", type=str, default=None, help="Export detection results to JSON file")
-    p_det.add_argument("--open-browser", action="store_true", help="Automatically open generated HTML report in browser")
+    p_det.add_argument(
+        "--export-html",
+        "--html",
+        dest="export_html",
+        type=str,
+        default=None,
+        help="Export interactive HTML audit dashboard to file",
+    )
+    p_det.add_argument(
+        "--export-json",
+        "--json",
+        dest="export_json",
+        type=str,
+        default=None,
+        help="Export detection results to JSON file",
+    )
+    p_det.add_argument(
+        "--open-browser", action="store_true", help="Automatically open generated HTML report in browser"
+    )
     p_det.set_defaults(func=cmd_detect)
 
     # dossier
     p_dos = subparsers.add_parser("dossier", help="Generate 5-question explainable audit dossier for a work")
     p_dos.add_argument("work_id", type=str, help="Work recommendation ID (e.g. 101511)")
-    p_dos.add_argument("--export-html", type=str, default=None, help="Export case dossier to interactive HTML file")
-    p_dos.add_argument("--export-json", type=str, default=None, help="Export case dossier to JSON file")
-    p_dos.add_argument("--open-browser", action="store_true", help="Automatically open generated HTML dossier in browser")
+    p_dos.add_argument(
+        "--export-html",
+        "--html",
+        dest="export_html",
+        type=str,
+        default=None,
+        help="Export case dossier to interactive HTML file",
+    )
+    p_dos.add_argument(
+        "--export-json",
+        "--json",
+        dest="export_json",
+        type=str,
+        default=None,
+        help="Export case dossier to JSON file",
+    )
+    p_dos.add_argument(
+        "--open-browser", action="store_true", help="Automatically open generated HTML dossier in browser"
+    )
     p_dos.set_defaults(func=cmd_dossier)
 
     # train-ml
     p_ml = subparsers.add_parser("train-ml", help="Train Phase 4 ML models on real data with temporal holdout")
-    p_ml.add_argument("--sample", type=int, default=20000, help="Number of works for training (default: 20000)")
+    p_ml.add_argument(
+        "--sample", type=int, default=None, help="Number of works for training (default: all available works)"
+    )
     p_ml.set_defaults(func=cmd_train_ml)
 
     # validate
-    p_val = subparsers.add_parser("validate", help="Run validation benchmarks, injection tests, and coverage bias audits")
+    p_val = subparsers.add_parser(
+        "validate", help="Run validation benchmarks, injection tests, and coverage bias audits"
+    )
     p_val.set_defaults(func=cmd_validate)
 
     # trends
