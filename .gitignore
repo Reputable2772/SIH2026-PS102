@@ -26,3 +26,5 @@ models/
 # Temporary directories & artifacts
 reports/
 scripts/
+
+frontend/node_modules/*
