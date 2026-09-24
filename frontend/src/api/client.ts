@@ -99,6 +99,8 @@ class ApiClient {
     district?: string;
     category?: string;
     priority?: string;
+    sort_by?: string;
+    sort_order?: string;
     page?: number;
     page_size?: number;
   }): Promise<{ total: number; page: number; page_size: number; total_pages: number; items: CanonicalWork[] }> {
@@ -108,6 +110,8 @@ class ApiClient {
     if (params.district) searchParams.set('district', params.district);
     if (params.category) searchParams.set('category', params.category);
     if (params.priority) searchParams.set('priority', params.priority);
+    if (params.sort_by) searchParams.set('sort_by', params.sort_by);
+    if (params.sort_order) searchParams.set('sort_order', params.sort_order);
     if (params.page) searchParams.set('page', params.page.toString());
     if (params.page_size) searchParams.set('page_size', params.page_size.toString());
 

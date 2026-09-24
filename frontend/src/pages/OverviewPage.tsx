@@ -360,7 +360,11 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onOpenDossier, onNav
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
               {urgentWorks.map((work) => (
-                <tr key={work.work_rec_id} className="hover:bg-slate-800/40 transition-colors group">
+                <tr
+                  key={work.work_rec_id}
+                  onClick={() => onOpenDossier(work.work_rec_id)}
+                  className="hover:bg-slate-800/60 cursor-pointer transition-colors group"
+                >
                   <td className="py-3.5 px-4">
                     <PriorityBadge priority={work.priority} size="sm" />
                   </td>

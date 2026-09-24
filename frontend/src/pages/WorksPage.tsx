@@ -16,6 +16,9 @@ import {
   Copy,
   Check,
   RotateCcw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -51,6 +54,8 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
   const [priority, setPriority] = useState<string>('');
   const [stateFilter, setStateFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('priority');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [loading, setLoading] = useState<boolean>(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -78,6 +83,8 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
         priority: priority || undefined,
         state: stateFilter.trim() || undefined,
         category: categoryFilter.trim() || undefined,
+        sort_by: sortBy || undefined,
+        sort_order: sortOrder,
         page,
         page_size: pageSize,
       });
@@ -92,7 +99,17 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
 
   useEffect(() => {
     fetchWorks();
-  }, [page, priority, stateFilter, categoryFilter]);
+  }, [page, priority, stateFilter, categoryFilter, sortBy, sortOrder]);
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,14 +255,74 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
       <div className="bg-[#131D31] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-[#0B1120] text-slate-400 font-mono uppercase text-[10px] border-b border-slate-800">
+            <thead className="bg-[#0B1120] text-slate-400 font-mono uppercase text-[10px] border-b border-slate-800 select-none">
               <tr>
-                <th className="py-3 px-4">Priority</th>
-                <th className="py-3 px-4">Rec ID / Project</th>
-                <th className="py-3 px-4">Category</th>
+                <th
+                  onClick={() => handleSort('priority')}
+                  className="py-3 px-4 cursor-pointer hover:text-white hover:bg-slate-800/50 transition-colors"
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Priority</span>
+                    {sortBy === 'priority' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-400" /> : <ArrowDown className="w-3 h-3 text-sky-400" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('work_rec_id')}
+                  className="py-3 px-4 cursor-pointer hover:text-white hover:bg-slate-800/50 transition-colors"
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Rec ID / Project</span>
+                    {sortBy === 'work_rec_id' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-400" /> : <ArrowDown className="w-3 h-3 text-sky-400" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('category')}
+                  className="py-3 px-4 cursor-pointer hover:text-white hover:bg-slate-800/50 transition-colors"
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Category</span>
+                    {sortBy === 'category' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-400" /> : <ArrowDown className="w-3 h-3 text-sky-400" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </th>
                 <th className="py-3 px-4">Location &amp; MP</th>
-                <th className="py-3 px-4">Financials</th>
-                <th className="py-3 px-4">SLA Turnaround</th>
+                <th
+                  onClick={() => handleSort('sanction_amount')}
+                  className="py-3 px-4 cursor-pointer hover:text-white hover:bg-slate-800/50 transition-colors"
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Financials</span>
+                    {sortBy === 'sanction_amount' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-400" /> : <ArrowDown className="w-3 h-3 text-sky-400" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSort('days_rec_to_sanction')}
+                  className="py-3 px-4 cursor-pointer hover:text-white hover:bg-slate-800/50 transition-colors"
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>SLA Turnaround</span>
+                    {sortBy === 'days_rec_to_sanction' ? (
+                      sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-sky-400" /> : <ArrowDown className="w-3 h-3 text-sky-400" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </th>
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
