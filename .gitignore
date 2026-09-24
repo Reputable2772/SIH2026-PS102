@@ -32,3 +32,4 @@ scripts/
 frontend/node_modules/*
 frontend/dist/
 *.tsbuildinfo
+*.db
