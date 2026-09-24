@@ -38,4 +38,3 @@ class TrendAnalyzer:
         trends["avg_sanction_delay"] = trends["avg_sanction_delay"].round(1)
         trends["avg_sanction_amount"] = trends["avg_sanction_amount"].round(0)
         return trends
-

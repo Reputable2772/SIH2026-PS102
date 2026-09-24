@@ -143,12 +143,12 @@ class VendorConcentrationDetector(BaseDetector):
             ]
 
             for _, v_row in top_vendors.iterrows():
-                v_name = str(v_row["primary_vendor_id"])
+                v_name = str(v_row["primary_vendor"])
                 v_share = float(v_row["disb_share"])
                 v_works = int(v_row["vendor_works"])
                 v_disb = float(v_row["vendor_disb"])
 
-                sample_works = sub[sub["primary_vendor_id"] == v_name].head(3)
+                sample_works = sub[sub["primary_vendor"] == v_name].head(3)
                 for _, row in sample_works.iterrows():
                     rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
                     work_id = str(row.get("WORK_ID") or rec_id)

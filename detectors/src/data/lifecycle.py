@@ -104,7 +104,6 @@ class WorkLifecycleReconstructor:
                     last_payment_date=("EXPENDITURE_DATE", "max"),
                     vendor_count=("VENDOR_NAME", "nunique"),
                     primary_vendor=("VENDOR_NAME", "first"),
-                    primary_vendor_id=("VENDOR_ID", "first"),
                     ia_name=("IA_NAME", "first"),
                     work_id_exp=("WORK_ID", "first"),
                 )
@@ -135,7 +134,6 @@ class WorkLifecycleReconstructor:
                 exp_df.groupby("WORK_RECOMMENDATION_DTL_ID")
                 .agg(
                     primary_vendor_any=("VENDOR_NAME", "first"),
-                    primary_vendor_id_any=("VENDOR_ID", "first"),
                     ia_name_any=("IA_NAME", "first"),
                     work_id_exp_any=("WORK_ID", "first"),
                 )
@@ -150,7 +148,7 @@ class WorkLifecycleReconstructor:
 
             # Fallback for entity names if successful subset was empty
             exp_agg["primary_vendor"] = exp_agg["primary_vendor"].combine_first(exp_agg["primary_vendor_any"])
-            exp_agg["primary_vendor_id"] = exp_agg.get("primary_vendor_id", pd.Series(dtype=float)).combine_first(exp_agg.get("primary_vendor_id_any", pd.Series(dtype=float)))
+
             exp_agg["ia_name"] = exp_agg["ia_name"].combine_first(exp_agg["ia_name_any"])
             exp_agg["work_id_exp"] = exp_agg["work_id_exp"].combine_first(exp_agg["work_id_exp_any"])
             exp_agg.drop(columns=["primary_vendor_any", "ia_name_any", "work_id_exp_any"], inplace=True)
