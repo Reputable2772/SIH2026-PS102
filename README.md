@@ -83,7 +83,7 @@ curl -k -sS -L --create-dirs "https://cag.gov.in/webroot/uploads/download_audit_
 ```
 
 > **How Supplementary Validation Files Are Used:**  
-> These PDFs serve as external qualitative benchmarks, sanity checks, and statutory ground truth. Rather than running slow/unreliable PDF ingestion in the real-time pipeline, their statutory criteria (e.g. 45-day sanction SLA, 365-day execution deadline, 90-day disbursement stall) are codified into [`src/config.py`](src/config.py), and their documented audit typologies (such as CAG Report 31 dormancy and Parliamentary Q44 breaches) are codified into [`src/validation/benchmark.py`](src/validation/benchmark.py) to mathematically benchmark and test detection recall.
+> These PDFs serve as external qualitative benchmarks, sanity checks, and statutory ground truth. Rather than running slow/unreliable PDF ingestion in the real-time pipeline, their statutory criteria (e.g. 45-day sanction SLA, 365-day execution deadline, 90-day disbursement stall) are codified into [`detectors/src/config.py`](detectors/src/config.py), and their documented audit typologies (such as CAG Report 31 dormancy and Parliamentary Q44 breaches) are codified into [`detectors/src/validation/benchmark.py`](detectors/src/validation/benchmark.py) to mathematically benchmark and test detection recall.
 
 ### Public Work-Level Endpoint Investigation:
 An exhaustive probe of e-SAKSHI routes confirmed the following work-level endpoints:
@@ -112,7 +112,7 @@ nix develop --command python3 scraper/mplads/mplads_scraper.py --help
 ```
 
 The shell provides:
-- Python 3 with `requests`, `pandas`, `numpy`, `scipy`, `scikit-learn`, `pyarrow`, `fastapi`, `uvicorn`, `jinja2`, `joblib`, and `pytest`
+- Python 3 with `requests`, `pandas`, `numpy`, `scipy`, `scikit-learn`, `pyarrow`, `jinja2`, `joblib`, and `pytest`
 - `curl`, `jq`, and `ruff`
 - `nixfmt` code formatter
 
@@ -125,31 +125,28 @@ The scraper script [`scraper/mplads/mplads_scraper.py`](scraper/mplads/mplads_sc
 ### 1. Download Everything (`--all`)
 Downloads all 6 core datasets for **both Lok Sabha and Rajya Sabha** across all 36 States/UTs, all geographic hierarchies (states, districts, tenures), and official scheme guideline documents:
 ```bash
-python3 scraper/mplads/mplads_scraper.py --all --output-dir data/mplads_full
+python3 scraper/mplads/mplads_scraper.py --all --out-dir data
 ```
 
 ### 2. Targeted House Extraction
 ```bash
 # Extract Lok Sabha national datasets
-python3 scraper/mplads/mplads_scraper.py --house 2 --output-dir data/ls_data
+python3 scraper/mplads/mplads_scraper.py --house lok_sabha --dataset completed --out-dir data
 
 # Extract Rajya Sabha state-by-state datasets
-python3 scraper/mplads/mplads_scraper.py --house 1 --output-dir data/rs_data
+python3 scraper/mplads/mplads_scraper.py --house rajya_sabha --dataset completed --out-dir data
 ```
 
 ### 3. State-Specific Extraction
 ```bash
 # Extract only Delhi (State ID 11) for Lok Sabha
-python3 scraper/mplads/mplads_scraper.py --house 2 --state 11 --output-dir data/delhi
+python3 scraper/mplads/mplads_scraper.py --house lok_sabha --state 11 --out-dir data/delhi
 ```
 
-### 4. Fetch Master Guidelines & Reference Data Only
+### 4. Skip Downloading PDFs During Bulk Scrape
 ```bash
-# Download official policy circulars and PDF manuals
-python3 scraper/mplads/mplads_scraper.py --documents-only --output-dir docs/guidelines
-
-# Download states and district lookup tables
-python3 scraper/mplads/mplads_scraper.py --reference-only --output-dir data/reference
+# Download all datasets while skipping guideline PDF downloads
+python3 scraper/mplads/mplads_scraper.py --all --skip-docs --out-dir data
 ```
 
 ---
@@ -178,29 +175,30 @@ Detailed schema definitions, nullability, and JSON samples are documented in [MP
 
 ## 🧠 Intelligence Engine CLI Usage
 
-The analytical core provides an interactive CLI ([`src/cli.py`](src/cli.py)) and Nix application (`nix run .#mplads-engine -- ...`):
+The analytical core provides an interactive CLI ([`detectors/src/cli.py`](detectors/src/cli.py)) and Nix application (`nix run .#mplads-engine -- ...`):
 
 ```bash
 # Reconstruct canonical work lifecycles from 15 raw datasets
-python3 -m src.cli pipeline
+python3 -m detectors.src.cli pipeline
+# or: nix run .#mplads-engine -- pipeline
 
 # Run multi-detector anomaly scan & rank critical review cases
-python3 -m src.cli detect --sample 10000 --top 15
+python3 -m detectors.src.cli detect --sample 10000 --top 15
 
 # Export interactive, self-contained HTML audit dashboard & JSON report
-python3 -m src.cli detect --sample 5000 --html reports/audit_overview.html --json reports/audit_overview.json
+python3 -m detectors.src.cli detect --sample 5000 --html reports/audit_overview.html --json reports/audit_overview.json
 
 # Generate an Explainable 5-Question Audit Dossier for an individual work
-python3 -m src.cli dossier 202625 --html reports/dossier_202625.html
+python3 -m detectors.src.cli dossier 202625 --html reports/dossier_202625.html
 
 # Train unsupervised (Isolation Forest) & supervised early-warning models
-python3 -m src.cli train-ml --sample 20000
+python3 -m detectors.src.cli train-ml --sample 20000
 
 # Execute mathematical validation suite (Monotonicity, CAG Recall, Coverage Bias)
-python3 -m src.cli validate
+python3 -m detectors.src.cli validate
 
 # Analyze macroeconomic operational trends across tenures
-python3 -m src.cli trends
+python3 -m detectors.src.cli trends
 ```
 
 For complete CLI flags and options, see the comprehensive [User Guide](docs/USER_GUIDE.md).
@@ -212,7 +210,7 @@ For complete CLI flags and options, see the comprehensive [User Guide](docs/USER
 The analytical core is decoupled from the CLI and can be embedded directly into custom workflows:
 
 ```python
-from src.engine import MPLADSEngine
+from detectors import MPLADSEngine
 
 engine = MPLADSEngine()
 
@@ -233,9 +231,11 @@ engine.export_dossier(dossier, format="html", output_path="reports/dossier_20262
 
 ## 🧪 Running the Test Suite
 
-Run the full 52-test automated regression and detection matrix suite:
+Run the full 59-test automated regression and detection matrix suite:
 ```bash
-pytest tests/ -v
+nix develop --command pytest -v
+# or simply:
+pytest -v
 ```
 
 ---
@@ -247,6 +247,7 @@ pytest tests/ -v
 ├── .envrc                                      # Direnv environment auto-load
 ├── flake.nix                                   # Reproducible Nix flake definition
 ├── flake.lock                                  # Locked Nix dependencies
+├── pyproject.toml                              # Ruff formatting and linting configuration
 ├── pytest.ini                                  # Pytest configuration
 ├── README.md                                   # Project overview and quickstart
 ├── docs/
@@ -257,14 +258,16 @@ pytest tests/ -v
 │   ├── phase_2_cross_work_and_pattern_intelligence.md # Network & similarity detectors
 │   ├── phase_3_risk_explainability_and_validation.md  # Two-axis risk scoring & validation suite
 │   └── phase_4_ml_models_and_integration.md    # Machine learning ensemble & pipeline integration
-├── src/
-│   ├── cli.py                                  # Unified interactive CLI entrypoint
-│   ├── config.py                               # Statutory policy thresholds & baseline configuration
-│   ├── data/                                   # Ingestion, normalization & lifecycle reconstruction
-│   ├── engine/                                 # Rule detectors, risk scorer & engine facade
-│   ├── ml/                                     # Isolation Forest & Gradient Boosting early-warning models
-│   └── validation/                             # Anomaly injection, CAG benchmarks & coverage bias
-├── tests/                                      # Full 52-test automated regression & matrix test suite
+├── detectors/
+│   ├── __init__.py                             # Package exports (MPLADSEngine, DetectionResultSet)
+│   ├── src/
+│   │   ├── cli.py                              # Unified interactive CLI entrypoint
+│   │   ├── config.py                           # Statutory policy thresholds & baseline configuration
+│   │   ├── data/                               # Ingestion, normalization & lifecycle reconstruction
+│   │   ├── engine/                             # Rule detectors, risk scorer & engine facade
+│   │   ├── ml/                                 # Isolation Forest & Gradient Boosting early-warning models
+│   │   └── validation/                         # Anomaly injection, CAG benchmarks & coverage bias
+│   └── tests/                                  # Full 59-test automated regression & matrix test suite
 └── scraper/
     └── mplads/
         ├── mplads_scraper.py                   # High-resilience REST bulk scraper
