@@ -5,11 +5,13 @@ Orchestrates training, persistence, and reopening of the composite risk scorer
 to incorporate trained ML signals as explainable supporting evidence.
 """
 
-from pathlib import Path
-from typing import Dict, Any, List, Optional
 import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import joblib
 import pandas as pd
+
 from src.config import MODELS_DIR, WEIGHTS
 from src.engine.detectors.base import Finding
 from src.engine.risk.composite_scorer import CompositeRiskScorer, WorkRiskScore
@@ -39,9 +41,9 @@ class MLIntegrationManager:
             "component_a": {
                 "model_type": "Isolation Forest",
                 "contamination": self.anomaly_ensemble.contamination,
-                "status": "FITTED"
+                "status": "FITTED",
             },
-            "component_b": eval_metrics
+            "component_b": eval_metrics,
         }
 
         # Save model artifacts
@@ -84,10 +86,7 @@ class MLIntegrationManager:
         return findings
 
     def score_works_integrated(
-        self,
-        df_works: pd.DataFrame,
-        rule_findings: List[Finding],
-        ml_findings: Optional[List[Finding]] = None
+        self, df_works: pd.DataFrame, rule_findings: List[Finding], ml_findings: Optional[List[Finding]] = None
     ) -> List[WorkRiskScore]:
         """
         Reopens the Phase 3 composite scorer to add trained ML signals alongside rule/statistical signals.

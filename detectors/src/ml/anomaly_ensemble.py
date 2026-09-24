@@ -6,11 +6,13 @@ unusual multidimensional irregularities not captured by individual univariate ru
 """
 
 from typing import List
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import RobustScaler
-from src.engine.detectors.base import Finding, AnomalyCategory
+
+from src.engine.detectors.base import AnomalyCategory, Finding
 from src.ml.features import FeaturePipeline
 
 
@@ -25,10 +27,7 @@ class UnsupervisedAnomalyEnsemble:
         self.random_state = random_state
         self.scaler = RobustScaler()
         self.model = IsolationForest(
-            contamination=self.contamination,
-            random_state=self.random_state,
-            n_estimators=100,
-            n_jobs=-1
+            contamination=self.contamination, random_state=self.random_state, n_estimators=100, n_jobs=-1
         )
         self.is_fitted = False
 
@@ -84,7 +83,7 @@ class UnsupervisedAnomalyEnsemble:
                     "features_analyzed": FeaturePipeline.LIFECYCLE_ANOMALY_FEATURES,
                     "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
                     "total_disbursed": float(row.get("total_disbursed", 0.0)),
-                    "days_rec_to_sanction": float(row.get("days_rec_to_sanction", 0.0))
+                    "days_rec_to_sanction": float(row.get("days_rec_to_sanction", 0.0)),
                 },
                 explanation=(
                     f"Work exhibits an atypical combination of budget scale, disbursement velocity, and turnaround milestones "
@@ -96,7 +95,7 @@ class UnsupervisedAnomalyEnsemble:
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 

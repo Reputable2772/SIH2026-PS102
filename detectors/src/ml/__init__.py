@@ -5,14 +5,9 @@ Provides feature engineering, unsupervised anomaly ensemble, supervised breach p
 and integrated composite scoring.
 """
 
-from src.ml.features import FeaturePipeline
 from src.ml.anomaly_ensemble import UnsupervisedAnomalyEnsemble
 from src.ml.breach_predictor import SupervisedBreachPredictor
+from src.ml.features import FeaturePipeline
 from src.ml.integration import MLIntegrationManager
 
-__all__ = [
-    "FeaturePipeline",
-    "UnsupervisedAnomalyEnsemble",
-    "SupervisedBreachPredictor",
-    "MLIntegrationManager"
-]
+__all__ = ["FeaturePipeline", "UnsupervisedAnomalyEnsemble", "SupervisedBreachPredictor", "MLIntegrationManager"]

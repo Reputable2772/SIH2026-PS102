@@ -5,9 +5,11 @@ Enforces strict separation between sanction-time predictive features and
 full lifecycle features for unsupervised anomaly detection.
 """
 
-from typing import Tuple, Dict, Optional
-import pandas as pd
+from typing import Dict, Optional, Tuple
+
 import numpy as np
+import pandas as pd
+
 from src.config import POLICY
 
 
@@ -21,7 +23,7 @@ class FeaturePipeline:
         "is_lok_sabha",
         "state_freq",
         "cat_freq",
-        "dqi_score"
+        "dqi_score",
     ]
 
     # Lifecycle features for unsupervised anomaly discovery
@@ -32,7 +34,7 @@ class FeaturePipeline:
         "days_rec_to_sanction_clean",
         "days_to_first_payment_clean",
         "disbursement_ratio",
-        "dqi_score"
+        "dqi_score",
     ]
 
     @classmethod
@@ -40,7 +42,7 @@ class FeaturePipeline:
         cls,
         df_works: pd.DataFrame,
         state_freq_map: Optional[Dict[str, float]] = None,
-        cat_freq_map: Optional[Dict[str, float]] = None
+        cat_freq_map: Optional[Dict[str, float]] = None,
     ) -> Tuple[pd.DataFrame, Dict[str, float], Dict[str, float]]:
         """
         Extracts features strictly knowable at or before sanction time.
@@ -108,7 +110,7 @@ class FeaturePipeline:
         cls,
         df_works: pd.DataFrame,
         observation_window_ls: int = POLICY.EXECUTION_SLA_DAYS,
-        observation_window_rs: int = POLICY.RS_POST_TENURE_SLA_DAYS
+        observation_window_rs: int = POLICY.RS_POST_TENURE_SLA_DAYS,
     ) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Constructs ground-truth breach outcome labels strictly for works whose elapsed age

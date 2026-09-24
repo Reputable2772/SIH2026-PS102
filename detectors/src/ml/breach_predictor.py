@@ -5,12 +5,14 @@ Predicts future milestone SLA breach probabilities for currently in-progress wor
 using strictly sanction-time observable features, temporal holdouts, and observation windows.
 """
 
-from typing import Dict, Any, Optional, List
-import pandas as pd
+from typing import Any, Dict, List, Optional
+
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.metrics import roc_auc_score, average_precision_score, precision_score, recall_score, confusion_matrix
-from src.engine.detectors.base import Finding, AnomalyCategory
+from sklearn.metrics import average_precision_score, confusion_matrix, precision_score, recall_score, roc_auc_score
+
+from src.engine.detectors.base import AnomalyCategory, Finding
 from src.ml.features import FeaturePipeline
 
 
@@ -23,21 +25,14 @@ class SupervisedBreachPredictor:
         self.category = AnomalyCategory.ML_SUPPORTING
         self.random_state = random_state
         self.model = HistGradientBoostingClassifier(
-            max_iter=100,
-            learning_rate=0.1,
-            max_depth=5,
-            random_state=self.random_state
+            max_iter=100, learning_rate=0.1, max_depth=5, random_state=self.random_state
         )
         self.state_freq_map: Dict[str, float] = {}
         self.cat_freq_map: Dict[str, float] = {}
         self.evaluation_metrics: Dict[str, Any] = {}
         self.is_fitted = False
 
-    def train_and_evaluate(
-        self,
-        df_works: pd.DataFrame,
-        split_date: Optional[pd.Timestamp] = None
-    ) -> Dict[str, Any]:
+    def train_and_evaluate(self, df_works: pd.DataFrame, split_date: Optional[pd.Timestamp] = None) -> Dict[str, Any]:
         """
         Executes rigorous temporal-holdout training and validation:
         1. Filters works to observation window eligibility (>= 365 days old).
@@ -56,8 +51,8 @@ class SupervisedBreachPredictor:
             split_date = eligible_df["SANCTION_DATE"].dropna().quantile(0.70)
 
         # Temporal split on SANCTION_DATE
-        train_mask = (eligible_df["SANCTION_DATE"] < split_date)
-        test_mask = (eligible_df["SANCTION_DATE"] >= split_date)
+        train_mask = eligible_df["SANCTION_DATE"] < split_date
+        test_mask = eligible_df["SANCTION_DATE"] >= split_date
 
         # Fallback to random 70/30 split if temporal cohort has extreme imbalance or too small test set
         if train_mask.sum() < 50 or test_mask.sum() < 50:
@@ -74,9 +69,7 @@ class SupervisedBreachPredictor:
         y_train = train_df["breach_label"].values
 
         X_test, _, _ = FeaturePipeline.build_sanction_time_features(
-            test_df,
-            state_freq_map=self.state_freq_map,
-            cat_freq_map=self.cat_freq_map
+            test_df, state_freq_map=self.state_freq_map, cat_freq_map=self.cat_freq_map
         )
         y_test = test_df["breach_label"].values
 
@@ -104,7 +97,7 @@ class SupervisedBreachPredictor:
             "precision": round(prec, 4),
             "recall": round(rec, 4),
             "confusion_matrix": cm,
-            "status": "PASS" if auc_roc >= 0.65 else "WARNING"
+            "status": "PASS" if auc_roc >= 0.65 else "WARNING",
         }
         return self.evaluation_metrics
 
@@ -113,9 +106,7 @@ class SupervisedBreachPredictor:
         if not self.is_fitted:
             raise ValueError("Model must be trained before predicting breach risk.")
         X, _, _ = FeaturePipeline.build_sanction_time_features(
-            df_works,
-            state_freq_map=self.state_freq_map,
-            cat_freq_map=self.cat_freq_map
+            df_works, state_freq_map=self.state_freq_map, cat_freq_map=self.cat_freq_map
         )
         return self.model.predict_proba(X)[:, 1]
 
@@ -158,7 +149,7 @@ class SupervisedBreachPredictor:
                     "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
                     "days_rec_to_sanction": float(row.get("days_rec_to_sanction", 0.0)),
                     "state_name": str(row.get("STATE_NAME")),
-                    "work_category": str(row.get("WORK_CATEGORY"))
+                    "work_category": str(row.get("WORK_CATEGORY")),
                 },
                 explanation=(
                     f"Predictive model flags {prob:.1%} probability of statutory execution breach based on sanction-time "
@@ -170,7 +161,7 @@ class SupervisedBreachPredictor:
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
+                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 
