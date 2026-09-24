@@ -31,6 +31,7 @@ class UserProfile(BaseModel):
     constituency: Optional[str] = None
     mp_name: Optional[str] = None
     permissions: List[str]
+    strict_isolation: bool = True
 
 
 # Pre-configured demo personas for fast switching in UI
@@ -43,7 +44,8 @@ DEMO_PERSONAS: Dict[str, UserProfile] = {
         organization="MoSPI — Autonomous Analytical Oversight Wing",
         state=None,
         district=None,
-        permissions=["read_all", "export_dossier", "trigger_audit", "admin_config", "view_unredacted_vendors"],
+        permissions=["read_all", "export_dossier", "trigger_audit", "admin_config", "view_unredacted_vendors", "simulate_thresholds"],
+        strict_isolation=False,
     ),
     "state_nodal_officer": UserProfile(
         id="usr_sno_mh",
@@ -53,7 +55,8 @@ DEMO_PERSONAS: Dict[str, UserProfile] = {
         organization="Planning Department, Govt. of Maharashtra",
         state="MAHARASHTRA",
         district=None,
-        permissions=["read_state", "export_state_report", "flag_district", "review_state_works"],
+        permissions=["read_state", "export_state_report", "flag_district", "review_state_works", "simulate_thresholds"],
+        strict_isolation=True,
     ),
     "district_authority": UserProfile(
         id="usr_ida_pune",
@@ -63,7 +66,8 @@ DEMO_PERSONAS: Dict[str, UserProfile] = {
         organization="Office of the District Magistrate & IDA Pune",
         state="MAHARASHTRA",
         district="PUNE",
-        permissions=["read_district", "dispatch_dqm_inspection", "signoff_milestone", "manage_district_review_queue"],
+        permissions=["read_district", "dispatch_dqm_inspection", "signoff_milestone", "manage_district_review_queue", "simulate_thresholds"],
+        strict_isolation=True,
     ),
     "mp_user": UserProfile(
         id="usr_mp_baramati",
@@ -76,6 +80,7 @@ DEMO_PERSONAS: Dict[str, UserProfile] = {
         constituency="Baramati",
         mp_name="Supriya Sule",
         permissions=["read_mp_portfolio", "track_recommendations", "download_constituency_summary"],
+        strict_isolation=True,
     ),
     "citizen": UserProfile(
         id="usr_citizen_pub",
@@ -86,6 +91,7 @@ DEMO_PERSONAS: Dict[str, UserProfile] = {
         state=None,
         district=None,
         permissions=["read_public_map", "view_public_dossier", "browse_completed_works"],
+        strict_isolation=False,
     ),
 }
 
@@ -99,6 +105,7 @@ GUEST_CITIZEN = UserProfile(
     state=None,
     district=None,
     permissions=["read_public_map", "view_public_dossier", "browse_completed_works"],
+    strict_isolation=False,
 )
 
 
@@ -127,8 +134,8 @@ def get_current_user(
     x_persona_id: Optional[str] = Header(None),
 ) -> UserProfile:
     """
-    Resolves the current user either from direct X-Persona-Id header
-    or JWT Authorization header. Falls back to unauthenticated GUEST_CITIZEN.
+    Resolves the current user either from direct X-Persona-Id header,
+    JWT Authorization header (with dynamic profile decoding), or falls back to GUEST_CITIZEN.
     """
     if x_persona_id and x_persona_id in DEMO_PERSONAS:
         return DEMO_PERSONAS[x_persona_id]
@@ -136,6 +143,14 @@ def get_current_user(
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
         payload = decode_access_token(token)
+        
+        # Support full dynamic user profiles embedded in JWT
+        if "user" in payload and isinstance(payload["user"], dict):
+            try:
+                return UserProfile(**payload["user"])
+            except Exception:
+                pass
+
         persona_id = payload.get("persona_id")
         if persona_id and persona_id in DEMO_PERSONAS:
             return DEMO_PERSONAS[persona_id]
@@ -191,16 +206,18 @@ def get_tenant_scope(user: UserProfile = Depends(get_current_user)) -> Dict[str,
         "permissions": user.permissions,
         "can_view_unredacted_vendors": "view_unredacted_vendors" in user.permissions,
         "is_citizen": user.role == UserRole.CITIZEN,
+        "strict_isolation": user.strict_isolation,
     }
 
-    if user.role == UserRole.STATE_NODAL_OFFICER and user.state:
-        scope["STATE_NAME"] = user.state.upper()
-    elif user.role == UserRole.DISTRICT_AUTHORITY:
-        if user.state:
+    if user.strict_isolation:
+        if user.role == UserRole.STATE_NODAL_OFFICER and user.state:
             scope["STATE_NAME"] = user.state.upper()
-        if user.district:
-            scope["IDA_NAME"] = user.district.upper()
-    elif user.role == UserRole.MP_USER and user.mp_name:
-        scope["MP_NAME"] = user.mp_name
+        elif user.role == UserRole.DISTRICT_AUTHORITY:
+            if user.state:
+                scope["STATE_NAME"] = user.state.upper()
+            if user.district:
+                scope["IDA_NAME"] = user.district.upper()
+        elif user.role == UserRole.MP_USER and user.mp_name:
+            scope["MP_NAME"] = user.mp_name
 
     return scope

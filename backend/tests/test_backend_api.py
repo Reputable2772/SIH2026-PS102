@@ -190,3 +190,58 @@ def test_rbac_vendor_redaction_and_tenant_scoping(client):
     # Search works as Central Auditor (vendors unredacted)
     auditor_res = client.get("/api/works?page=1&page_size=5", headers={"X-Persona-Id": "central_auditor"})
     assert auditor_res.status_code == 200
+
+
+def test_pune_ida_and_baramati_mp_tenant_access(client):
+    # Pune IDA has access to Pune works and can view dossier
+    pune_works = client.get("/api/works", headers={"X-Persona-Id": "district_authority"}).json()
+    assert pune_works["total"] >= 100
+    pune_rec_id = pune_works["items"][0]["work_rec_id"]
+    pune_dossier = client.get(f"/api/dossier/{pune_rec_id}", headers={"X-Persona-Id": "district_authority"})
+    assert pune_dossier.status_code == 200
+
+    # Baramati MP has access to their works and can view dossier
+    mp_works = client.get("/api/works", headers={"X-Persona-Id": "mp_user"}).json()
+    assert mp_works["total"] >= 30
+    mp_rec_id = mp_works["items"][0]["work_rec_id"]
+    mp_dossier = client.get(f"/api/dossier/{mp_rec_id}", headers={"X-Persona-Id": "mp_user"})
+    assert mp_dossier.status_code == 200
+
+    # Out-of-tenant boundary check: MP cannot access Pune IDA work recommended by another MP
+    other_work_rec = "137790"  # recommended by Amol Kolhe
+    unauth_dossier = client.get(f"/api/dossier/{other_work_rec}", headers={"X-Persona-Id": "mp_user"})
+    assert unauth_dossier.status_code == 403
+
+
+def test_dynamic_persona_switching_any_mp_and_district(client):
+    # Dynamic MP: Switch to Narendra Modi
+    switch_modi = client.post("/api/auth/switch-persona", json={"role": "MP_USER", "mp_name": "Narendra Modi"})
+    assert switch_modi.status_code == 200
+    modi_data = switch_modi.json()
+    assert "access_token" in modi_data
+    assert modi_data["user"]["constituency"] == "VARANASI"
+    token = modi_data["access_token"]
+
+    modi_works = client.get("/api/works", headers={"Authorization": f"Bearer {token}"})
+    assert modi_works.status_code == 200
+    assert modi_works.json()["total"] > 100
+
+    # Dynamic District: Switch to Varanasi IDA
+    switch_dist = client.post(
+        "/api/auth/switch-persona",
+        json={"role": "DISTRICT_AUTHORITY", "state": "UTTAR PRADESH", "district": "VARANASI"},
+    )
+    assert switch_dist.status_code == 200
+    assert switch_dist.json()["user"]["district"] == "VARANASI"
+
+
+def test_district_authority_can_simulate_detectors(client):
+    res = client.post(
+        "/api/detectors/simulate",
+        headers={"X-Persona-Id": "district_authority"},
+        json={"sla_days": 45, "execution_days": 365, "z_threshold": 2.5},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "sanction_sla_breaches" in data
+

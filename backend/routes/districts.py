@@ -28,9 +28,10 @@ def get_all_districts(state: Optional[str] = Query(None, description="Optional S
 def get_district_deep_dive(state: str, district: str):
     """Returns detailed bottleneck and contractor concentration profile for an IDA."""
     ds = DataService.get_instance()
+    d_q = district.strip().upper()
     sub = ds.df_works[
         (ds.df_works["STATE_NAME"].astype(str).str.upper() == state.upper()) &
-        (ds.df_works["IDA_NAME"].astype(str).str.upper() == district.upper())
+        (ds.df_works["IDA_NAME"].astype(str).str.upper().apply(lambda v: d_q in v or v in d_q))
     ]
     if sub.empty:
         raise HTTPException(status_code=404, detail=f"District '{district}' in '{state}' not found.")

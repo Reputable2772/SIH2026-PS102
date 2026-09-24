@@ -60,6 +60,12 @@ def get_mp_detail(mp_name: str):
         target_mp = next((m for m in ds.mp_directory if mp_name.lower() in m["mp_name"].lower()), None)
 
     if not target_mp:
+        # Fallback multi-token match (e.g. Supriya Sule matches Smt Supriya Sadanand Sule)
+        tokens = [t.lower() for t in mp_name.split() if len(t) > 2]
+        if tokens:
+            target_mp = next((m for m in ds.mp_directory if all(t in m["mp_name"].lower() for t in tokens)), None)
+
+    if not target_mp:
         raise HTTPException(status_code=404, detail=f"MP '{mp_name}' not found.")
 
     # Get works recommended by this MP

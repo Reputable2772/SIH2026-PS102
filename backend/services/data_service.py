@@ -367,9 +367,14 @@ class DataService:
         if state:
             df = df[df["STATE_NAME"].astype(str).str.upper() == state.upper()]
         if district:
-            df = df[df["IDA_NAME"].astype(str).str.upper() == district.upper()]
+            d_q = str(district).strip().upper()
+            df = df[df["IDA_NAME"].astype(str).str.upper().apply(lambda v: d_q in v or v in d_q)]
         if mp_name:
-            df = df[df["MP_NAME"].astype(str).str.contains(mp_name, case=False, na=False)]
+            mp_toks = [t.lower() for t in str(mp_name).split() if len(t) > 2]
+            if mp_toks:
+                df = df[df["MP_NAME"].astype(str).apply(lambda v: all(t in v.lower() for t in mp_toks))]
+            else:
+                df = df[df["MP_NAME"].astype(str).str.contains(mp_name, case=False, na=False)]
         if category:
             df = df[df["WORK_CATEGORY"].astype(str).str.contains(category, case=False, na=False)]
         if priority:
@@ -425,6 +430,8 @@ class DataService:
         """Verifies if a specific work ID falls within the authenticated user's tenant boundary."""
         if not scope:
             return True
+        if not scope.get("strict_isolation", True):
+            return True
         role = scope.get("role")
         if role in ("CENTRAL_AUDITOR", "CITIZEN", None):
             return True
@@ -437,10 +444,16 @@ class DataService:
         row = match.iloc[0]
         if "STATE_NAME" in scope and str(row.get("STATE_NAME", "")).upper() != str(scope["STATE_NAME"]).upper():
             return False
-        if "IDA_NAME" in scope and str(row.get("IDA_NAME", "")).upper() != str(scope["IDA_NAME"]).upper():
-            return False
-        if "MP_NAME" in scope and str(scope["MP_NAME"]).lower() not in str(row.get("MP_NAME", "")).lower():
-            return False
+        if "IDA_NAME" in scope:
+            ida_query = str(scope["IDA_NAME"]).strip().upper()
+            row_ida = str(row.get("IDA_NAME", "")).upper()
+            if ida_query not in row_ida and row_ida not in ida_query:
+                return False
+        if "MP_NAME" in scope:
+            mp_tokens = [t.lower() for t in str(scope["MP_NAME"]).split() if len(t) > 2]
+            row_mp = str(row.get("MP_NAME", "")).lower()
+            if mp_tokens and not all(t in row_mp for t in mp_tokens):
+                return False
 
         return True
 
@@ -541,13 +554,26 @@ class DataService:
         """Applies tenant restrictions to dataframe queries."""
         if not scope:
             return df
+        # If strict isolation is disabled (Auditor / Sandbox mode), skip geographic/portfolio restrictions
+        if not scope.get("strict_isolation", True):
+            return df
+
         filtered = df
         if "STATE_NAME" in scope and "STATE_NAME" in df.columns:
             filtered = filtered[filtered["STATE_NAME"].astype(str).str.upper() == str(scope["STATE_NAME"]).upper()]
         if "IDA_NAME" in scope and "IDA_NAME" in df.columns:
-            filtered = filtered[filtered["IDA_NAME"].astype(str).str.upper() == str(scope["IDA_NAME"]).upper()]
+            ida_query = str(scope["IDA_NAME"]).strip().upper()
+            filtered = filtered[filtered["IDA_NAME"].astype(str).str.upper().apply(
+                lambda val: ida_query in val or val in ida_query
+            )]
         if "MP_NAME" in scope and "MP_NAME" in df.columns:
-            filtered = filtered[filtered["MP_NAME"].astype(str).str.contains(str(scope["MP_NAME"]), case=False, na=False)]
+            mp_tokens = [t.lower() for t in str(scope["MP_NAME"]).split() if len(t) > 2]
+            if mp_tokens:
+                filtered = filtered[filtered["MP_NAME"].astype(str).apply(
+                    lambda val: all(t in val.lower() for t in mp_tokens)
+                )]
+            else:
+                filtered = filtered[filtered["MP_NAME"].astype(str).str.contains(str(scope["MP_NAME"]), case=False, na=False)]
         if scope.get("is_citizen") and "ACTUAL_END_DATE" in filtered.columns:
             completed = filtered[filtered["ACTUAL_END_DATE"].notna()]
             if not completed.empty:

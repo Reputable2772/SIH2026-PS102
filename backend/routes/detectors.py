@@ -198,7 +198,7 @@ def list_all_detectors():
 @router.post("/simulate", response_model=Dict[str, Any])
 def simulate_thresholds(
     payload: SimulationRequest,
-    user: UserProfile = Depends(require_any_permission("admin_config", "trigger_audit", "read_all")),
+    user: UserProfile = Depends(require_any_permission("admin_config", "trigger_audit", "read_all", "simulate_thresholds", "manage_district_review_queue", "review_state_works")),
 ):
     """Dynamically simulates changing statutory thresholds across all canonical works (Guarded by RBAC)."""
     ds = DataService.get_instance()
