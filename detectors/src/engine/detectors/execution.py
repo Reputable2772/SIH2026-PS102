@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import POLICY
-from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
+from src.engine.detectors.base import safe_float, AnomalyCategory, BaseDetector, Finding
 
 
 class ProgressExpenditureMismatchDetector(BaseDetector):
@@ -42,9 +42,9 @@ class ProgressExpenditureMismatchDetector(BaseDetector):
 
         findings = []
         for _, row in flagged.iterrows():
-            sanc = float(row["SANCTION_AMOUNT"])
-            disb = float(row["total_disbursed"])
-            days = float(row["days_since_sanction"])
+            sanc = safe_float(row.get("SANCTION_AMOUNT", 0.0))
+            disb = safe_float(row.get("total_disbursed", 0.0))
+            days = safe_float(row.get("days_since_sanction", 0.0))
             ratio = disb / sanc
 
             sev = float(np.clip(0.5 + (ratio - 0.85) * 2.0 + (days - 365) / 730.0 * 0.3, 0.5, 1.0))

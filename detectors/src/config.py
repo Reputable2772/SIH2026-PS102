@@ -60,7 +60,7 @@ class NetworkThresholds:
     TOP_ENTITY_SHARE_THRESHOLD: float = 0.40  # Entity capturing > 40% of district volume
     SIMILARITY_DUPLICATE_THRESHOLD: float = 0.82  # TF-IDF + metadata composite similarity threshold
     SIMILARITY_COST_WINDOW_RATIO: float = 0.20  # Cost difference within +/- 20%
-    ENABLE_VENDOR_CONCENTRATION: bool = False  # Gated per Core.md FR-08 / AC-07 until entity disambiguation verified
+    ENABLE_VENDOR_CONCENTRATION: bool = True  # Gated per Core.md FR-08 / AC-07 until entity disambiguation verified
 
 
 @dataclass(frozen=True)

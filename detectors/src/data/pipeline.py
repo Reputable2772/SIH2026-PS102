@@ -59,7 +59,14 @@ class DataPipeline:
         )
 
         # Combine national dataset
-        all_works = pd.concat([ls_works, rs_works], ignore_index=True)
+        works_list = [w for w in [ls_works, rs_works] if not w.empty]
+        if works_list:
+            all_works = pd.concat(works_list, ignore_index=True)
+        else:
+            all_works = pd.DataFrame()
+
+        if all_works.empty:
+            return all_works, pd.DataFrame()
 
         # Compute DQI
         all_works = self.auditor.compute_work_dqi(all_works)

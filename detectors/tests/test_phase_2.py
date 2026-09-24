@@ -100,7 +100,7 @@ def test_vendor_concentration_detector():
                 "WORK_ID": f"W40{i}",
                 "STATE_NAME": "RAJASTHAN",
                 "IDA_NAME": "JAIPUR",
-                "primary_vendor": vendor,
+                "primary_vendor": vendor, "primary_vendor_id": f"VID_{vendor}",
                 "total_disbursed": disb,
                 "SANCTION_AMOUNT": disb,
             }
@@ -132,6 +132,7 @@ def test_vendor_concentration_gating_behavior():
                 "STATE_NAME": "RAJASTHAN",
                 "IDA_NAME": "JAIPUR",
                 "primary_vendor": "MONOPOLY_CONSTRUCTION" if i < 10 else f"VENDOR_{i}",
+                "primary_vendor_id": "V_MONOPOLY" if i < 10 else f"V_{i}",
                 "ia_name": "RURAL_DEV",
                 "total_disbursed": 200000.0 if i < 10 else 25000.0,
                 "SANCTION_AMOUNT": 200000.0 if i < 10 else 25000.0,
@@ -773,7 +774,7 @@ def test_vendor_recurrence_empirical_bayes():
         [
             {
                 "WORK_RECOMMENDATION_DTL_ID": f"V_{i}",
-                "primary_vendor": "SHADY_CONTRACTOR_LTD",
+                "primary_vendor": "SHADY_CONTRACTOR_LTD", "primary_vendor_id": "V_SHADY",
                 "STATE_NAME": "RAJASTHAN",
                 "IDA_NAME": "JAIPUR",
                 "SANCTION_AMOUNT": 800000.0,

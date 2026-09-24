@@ -10,7 +10,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
+from src.engine.detectors.base import safe_float, AnomalyCategory, BaseDetector, Finding
 
 
 class IAOverloadDetector(BaseDetector):
@@ -94,7 +94,7 @@ class IAOverloadDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                sanction_amount=safe_float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 

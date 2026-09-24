@@ -44,6 +44,9 @@ class WorkLifecycleReconstructor:
         """
         Performs relational linkage and canonical work synthesis.
         """
+        if df_sanctioned.empty:
+            return pd.DataFrame()
+
         # 1. Start with Sanctioned as the anchor of legal project existence
         sanc = df_sanctioned.copy()
         sanc["house"] = house
@@ -88,6 +91,10 @@ class WorkLifecycleReconstructor:
             exp_df["is_successful_disb"] = is_success & (~is_penny_drop)
             exp_df["is_in_progress_disb"] = is_in_progress
             exp_df["is_penny_drop_disb"] = is_success & is_penny_drop
+            
+            if "VENDOR_ID" not in exp_df.columns:
+                exp_df["VENDOR_ID"] = None
+
 
             # Distinct subsets
             succ_df = exp_df[exp_df["is_successful_disb"]]
@@ -104,6 +111,7 @@ class WorkLifecycleReconstructor:
                     last_payment_date=("EXPENDITURE_DATE", "max"),
                     vendor_count=("VENDOR_NAME", "nunique"),
                     primary_vendor=("VENDOR_NAME", "first"),
+                    primary_vendor_id=("VENDOR_ID", "first"),
                     ia_name=("IA_NAME", "first"),
                     work_id_exp=("WORK_ID", "first"),
                 )
@@ -134,6 +142,7 @@ class WorkLifecycleReconstructor:
                 exp_df.groupby("WORK_RECOMMENDATION_DTL_ID")
                 .agg(
                     primary_vendor_any=("VENDOR_NAME", "first"),
+                    primary_vendor_id_any=("VENDOR_ID", "first"),
                     ia_name_any=("IA_NAME", "first"),
                     work_id_exp_any=("WORK_ID", "first"),
                 )
@@ -148,10 +157,12 @@ class WorkLifecycleReconstructor:
 
             # Fallback for entity names if successful subset was empty
             exp_agg["primary_vendor"] = exp_agg["primary_vendor"].combine_first(exp_agg["primary_vendor_any"])
+            if "primary_vendor_id_any" in exp_agg.columns:
+                exp_agg["primary_vendor_id"] = exp_agg.get("primary_vendor_id", pd.Series(index=exp_agg.index, dtype=object)).combine_first(exp_agg["primary_vendor_id_any"])
 
             exp_agg["ia_name"] = exp_agg["ia_name"].combine_first(exp_agg["ia_name_any"])
             exp_agg["work_id_exp"] = exp_agg["work_id_exp"].combine_first(exp_agg["work_id_exp_any"])
-            exp_agg.drop(columns=["primary_vendor_any", "ia_name_any", "work_id_exp_any"], inplace=True)
+            exp_agg.drop(columns=[c for c in ["primary_vendor_any", "primary_vendor_id_any", "ia_name_any", "work_id_exp_any"] if c in exp_agg.columns], inplace=True)
 
             # For works with expenditure records but no successful disbursements, total_disbursed is 0.0
             # (indicating zero confirmed disbursements, distinct from missing expenditure which is NaN)
@@ -174,6 +185,7 @@ class WorkLifecycleReconstructor:
             merged["last_payment_date"] = pd.NaT
             merged["vendor_count"] = 0
             merged["primary_vendor"] = None
+            merged["primary_vendor_id"] = None
             merged["ia_name"] = None
             merged["work_id_exp"] = None
             merged["in_progress_disbursed"] = np.nan

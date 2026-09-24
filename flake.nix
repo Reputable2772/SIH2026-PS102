@@ -39,6 +39,11 @@
               pyarrow
               joblib
               pytest
+              fastapi
+              uvicorn
+              pyjwt
+              python-multipart
+              httpx
             ]
           );
         in
@@ -48,13 +53,17 @@
               pkgs.nixfmt
               pkgs.ruff
               pythonEnv
+              pkgs.nodejs
+              pkgs.pnpm
               pkgs.curl
               pkgs.jq
             ];
 
             shellHook = ''
-              echo "SIH PS102 (MPLADS) environment loaded."
+              echo "SIH PS102 (MPLADS Full-Stack) environment loaded."
               echo "Python: $(python3 --version)"
+              echo "Node: $(node --version 2>/dev/null || echo 'N/A')"
+              echo "pnpm: $(pnpm --version 2>/dev/null || echo 'N/A')"
             '';
           };
         }

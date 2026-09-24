@@ -19,23 +19,33 @@ class DataLoader:
     def __init__(self, data_dir: Path = DATA_DIR):
         self.data_dir = data_dir
 
+    def _safe_read_csv(self, filename: str) -> pd.DataFrame:
+        """Safely loads a CSV file or returns an empty DataFrame if file does not exist."""
+        path = self.data_dir / filename
+        if not path.exists():
+            return pd.DataFrame()
+        try:
+            return pd.read_csv(path, low_memory=False)
+        except Exception:
+            return pd.DataFrame()
+
     def load_masters(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Loads state, district, and tenure lookup tables."""
-        states = pd.read_csv(self.data_dir / "master_states.csv")
-        districts = pd.read_csv(self.data_dir / "master_districts.csv")
-        tenures = pd.read_csv(self.data_dir / "master_tenures.csv")
+        states = self._safe_read_csv("master_states.csv")
+        districts = self._safe_read_csv("master_districts.csv")
+        tenures = self._safe_read_csv("master_tenures.csv")
         return states, districts, tenures
 
     def load_house_datasets(self, house: str = "lok_sabha") -> Dict[str, pd.DataFrame]:
         """Loads all datasets for a specific chamber (lok_sabha or rajya_sabha)."""
         prefix = f"mplads_{house}"
         return {
-            "recommended": pd.read_csv(self.data_dir / f"{prefix}_recommended.csv", low_memory=False),
-            "sanctioned": pd.read_csv(self.data_dir / f"{prefix}_sanctioned.csv", low_memory=False),
-            "completed": pd.read_csv(self.data_dir / f"{prefix}_completed.csv", low_memory=False),
-            "expenditures": pd.read_csv(self.data_dir / f"{prefix}_expenditures.csv", low_memory=False),
-            "allocations": pd.read_csv(self.data_dir / f"{prefix}_allocations.csv", low_memory=False),
-            "calamity": pd.read_csv(self.data_dir / f"{prefix}_calamity.csv", low_memory=False),
+            "recommended": self._safe_read_csv(f"{prefix}_recommended.csv"),
+            "sanctioned": self._safe_read_csv(f"{prefix}_sanctioned.csv"),
+            "completed": self._safe_read_csv(f"{prefix}_completed.csv"),
+            "expenditures": self._safe_read_csv(f"{prefix}_expenditures.csv"),
+            "allocations": self._safe_read_csv(f"{prefix}_allocations.csv"),
+            "calamity": self._safe_read_csv(f"{prefix}_calamity.csv"),
         }
 
     def load_all(self) -> Dict[str, pd.DataFrame]:

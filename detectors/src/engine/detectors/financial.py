@@ -12,7 +12,7 @@ import pandas as pd
 
 from src.config import STATISTICS
 from src.engine.baselines import BaselineEngine
-from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
+from src.engine.detectors.base import safe_float, AnomalyCategory, BaseDetector, Finding
 
 
 class CostPeerOutlierDetector(BaseDetector):
@@ -29,7 +29,7 @@ class CostPeerOutlierDetector(BaseDetector):
         valid_works = df_works[df_works["SANCTION_AMOUNT"] > 0]
 
         for _, row in valid_works.iterrows():
-            amt = float(row["SANCTION_AMOUNT"])
+            amt = safe_float(row.get("SANCTION_AMOUNT", 0.0))
             state = row.get("STATE_NAME")
             cat = row.get("WORK_CATEGORY")
 
@@ -46,7 +46,7 @@ class CostPeerOutlierDetector(BaseDetector):
                 # Severity scales with Z-score magnitude
                 sev = float(np.clip(0.4 + (z_score - self.z_threshold) * 0.12, 0.4, 1.0))
                 # Confidence combines peer group size confidence and record DQI
-                dqi = float(row.get("dqi_score", 0.8))
+                dqi = safe_float(row.get("dqi_score", 0.8))
                 conf = float(np.clip(peer_conf * 0.6 + dqi * 0.4, 0.3, 1.0))
 
                 work_id = str(row.get("WORK_ID") or row.get("WORK_RECOMMENDATION_DTL_ID"))
@@ -111,8 +111,8 @@ class CostOverrunDetector(BaseDetector):
 
         findings = []
         for _, row in flagged.iterrows():
-            sanc = float(row["SANCTION_AMOUNT"])
-            disb = float(row["total_disbursed"])
+            sanc = safe_float(row.get("SANCTION_AMOUNT", 0.0))
+            disb = safe_float(row.get("total_disbursed", 0.0))
             ratio = disb / sanc
             excess = disb - sanc
 
@@ -184,7 +184,7 @@ class TemporalDisbursementSpikeDetector(BaseDetector):
         for _, row in flagged.iterrows():
             span = int((row["last_payment_date"] - row["first_payment_date"]).days)
             cnt = int(row["payment_count"])
-            disb = float(row["total_disbursed"])
+            disb = safe_float(row.get("total_disbursed", 0.0))
 
             work_id = str(row.get("WORK_ID") or row.get("WORK_RECOMMENDATION_DTL_ID"))
             rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
@@ -215,7 +215,7 @@ class TemporalDisbursementSpikeDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                sanction_amount=safe_float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 

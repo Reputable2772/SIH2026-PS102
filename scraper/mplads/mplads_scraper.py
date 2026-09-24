@@ -377,15 +377,23 @@ def scrape_attachments(out_dir):
                     if not dest.startswith(os.path.abspath(work_folder)): continue
                     if os.path.exists(dest): continue
 
-                    res = get_attachment_by_id(aid)
-                    for r in res:
-                        url_b64 = r.get("URL")
-                        if url_b64:
-                            try:
-                                file_bytes = base64.b64decode(url_b64)
-                                with open(dest, "wb") as f: f.write(file_bytes)
-                                count += 1
-                            except Exception: pass
+                    for attempt in range(3):
+                        res = get_attachment_by_id(aid)
+                        if res and isinstance(res, list):
+                            for r in res:
+                                url_b64 = r.get("URL")
+                                if url_b64:
+                                    try:
+                                        file_bytes = base64.b64decode(url_b64)
+                                        with open(dest, "wb") as f: f.write(file_bytes)
+                                        count += 1
+                                    except Exception: pass
+                            break
+                        import time
+                        time.sleep(1.5 ** attempt)
+                    else:
+                        with open(os.path.join(out_dir, "failed_attachments.txt"), "a") as err_log:
+                            err_log.write(f"Failed WORK_ID: {wid}, ATTACH_ID: {aid}\n")
             time.sleep(0.05)
     print(f"[✓] Downloaded {count} new attachment files.")
 

@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import POLICY
-from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding
+from src.engine.detectors.base import safe_float, AnomalyCategory, BaseDetector, Finding
 
 
 class SanctionSLABreachDetector(BaseDetector):
@@ -34,7 +34,7 @@ class SanctionSLABreachDetector(BaseDetector):
 
         findings = []
         for _, row in flagged.iterrows():
-            days = float(row["days_rec_to_sanction"])
+            days = safe_float(row.get("days_rec_to_sanction", 0.0))
             overage = days - self.sla_days
             # Severity scales from 0.1 at 46 days to 0.60 at 365+ days overage (calibrated procedural SLA ceiling)
             sev = float(np.clip(0.1 + (overage / 365.0) * 0.5, 0.1, 0.60))
@@ -69,7 +69,7 @@ class SanctionSLABreachDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                sanction_amount=safe_float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
         return findings
@@ -114,7 +114,7 @@ class ExecutionDeadlineDetector(BaseDetector):
 
         for _, row in all_flagged.iterrows():
             is_comp = pd.notna(row["ACTUAL_END_DATE"])
-            duration = float(row["days_sanction_to_completion"]) if is_comp else float(row["days_since_sanction"])
+            duration = safe_float(row.get("days_sanction_to_completion", 0.0)) if is_comp else safe_float(row.get("days_since_sanction", 0.0))
             sla = self.rs_sla if row["house"] == "RAJYA_SABHA" else self.ls_sla
             overage = duration - sla
 
@@ -152,7 +152,7 @@ class ExecutionDeadlineDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                sanction_amount=safe_float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 
@@ -187,7 +187,7 @@ class StalledDisbursementDetector(BaseDetector):
 
         findings = []
         for _, row in flagged.iterrows():
-            days_stalled = float(row["days_since_sanction"])
+            days_stalled = safe_float(row.get("days_since_sanction", 0.0))
             overage = days_stalled - self.stall_days
             sev = float(np.clip(0.3 + (overage / 180.0) * 0.7, 0.3, 1.0))
             conf = float(np.clip(row.get("dqi_score", 0.8), 0.3, 1.0))
@@ -228,7 +228,7 @@ class StalledDisbursementDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                sanction_amount=safe_float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 
@@ -299,7 +299,7 @@ class LifecycleLeapDetector(BaseDetector):
                 ),
                 state_name=row.get("STATE_NAME"),
                 ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                sanction_amount=safe_float(row.get("SANCTION_AMOUNT", 0.0)),
             )
             findings.append(f)
 
