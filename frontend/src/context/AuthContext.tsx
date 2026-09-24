@@ -35,9 +35,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const fetchedPersonas = await api.getPersonas();
         setPersonas(fetchedPersonas);
 
+        const savedToken = localStorage.getItem('mplads_auth_token');
+        const savedPersona = localStorage.getItem('mplads_persona_id');
+        const savedPayloadStr = localStorage.getItem('mplads_persona_payload');
+
+        if (savedToken && savedPayloadStr) {
+          try {
+            const payload = JSON.parse(savedPayloadStr);
+            const res = await api.switchPersona(payload);
+            api.setToken(res.access_token);
+            setCurrentUser(res.user);
+            setActivePersonaId(savedPersona || res.user.role.toLowerCase());
+            return;
+          } catch (e) {
+            console.warn('Failed to restore saved persona session:', e);
+          }
+        }
+
         // Default to central auditor
         const res = await api.switchPersona('central_auditor');
         api.setToken(res.access_token);
+        localStorage.setItem('mplads_auth_token', res.access_token);
+        localStorage.setItem('mplads_persona_id', 'central_auditor');
+        localStorage.setItem('mplads_persona_payload', JSON.stringify({ persona_id: 'central_auditor' }));
         setCurrentUser(res.user);
         setActivePersonaId('central_auditor');
       } catch (err) {
@@ -54,8 +74,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.switchPersona(payload);
       api.setToken(res.access_token);
+      const pid = payload.persona_id || res.user.role.toLowerCase();
+      localStorage.setItem('mplads_auth_token', res.access_token);
+      localStorage.setItem('mplads_persona_id', pid);
+      localStorage.setItem('mplads_persona_payload', JSON.stringify(payload));
       setCurrentUser(res.user);
-      setActivePersonaId(payload.persona_id || res.user.role.toLowerCase());
+      setActivePersonaId(pid);
     } catch (err) {
       console.error('Failed to switch dynamic persona:', err);
     } finally {

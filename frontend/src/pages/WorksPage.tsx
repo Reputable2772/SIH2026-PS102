@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { CanonicalWork, StateMapMetric } from '../types';
 import { PriorityBadge } from '../components/common/PriorityBadge';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import {
   Search,
@@ -19,6 +20,9 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Lock,
+  Shield,
+  Download,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -44,6 +48,7 @@ const CATEGORY_PILLS = [
 ];
 
 export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilter }) => {
+  const { currentUser } = useAuth();
   const { showToast } = useToast();
   const [works, setWorks] = useState<CanonicalWork[]>([]);
   const [availableStates, setAvailableStates] = useState<StateMapMetric[]>([]);
@@ -58,6 +63,17 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [loading, setLoading] = useState<boolean>(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Sync state filter with user jurisdiction if strict isolation is active
+  useEffect(() => {
+    if (currentUser?.strict_isolation) {
+      if (currentUser.role === 'DISTRICT_AUTHORITY' && currentUser.state) {
+        setStateFilter(currentUser.state);
+      } else if (currentUser.role === 'STATE_NODAL_OFFICER' && currentUser.state) {
+        setStateFilter(currentUser.state);
+      }
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     api.getStateMapMetrics()
@@ -75,13 +91,17 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
     }
   }, [initialFilter]);
 
+  const isDistrictLocked = currentUser?.strict_isolation && currentUser?.role === 'DISTRICT_AUTHORITY';
+  const isStateLocked = currentUser?.strict_isolation && (currentUser?.role === 'STATE_NODAL_OFFICER' || currentUser?.role === 'DISTRICT_AUTHORITY');
+
   const fetchWorks = async () => {
     setLoading(true);
     try {
       const data = await api.searchWorks({
         query: query.trim() || undefined,
         priority: priority || undefined,
-        state: stateFilter.trim() || undefined,
+        state: isStateLocked ? (currentUser?.state || undefined) : (stateFilter.trim() || undefined),
+        district: isDistrictLocked ? (currentUser?.district || undefined) : undefined,
         category: categoryFilter.trim() || undefined,
         sort_by: sortBy || undefined,
         sort_order: sortOrder,
@@ -90,8 +110,9 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
       });
       setWorks(data.items);
       setTotal(data.total);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to search works:', err);
+      showToast('Query Restricted', err.message || 'Action restricted by multi-tenant security boundary', 'error');
     } finally {
       setLoading(false);
     }
@@ -99,7 +120,37 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
 
   useEffect(() => {
     fetchWorks();
-  }, [page, priority, stateFilter, categoryFilter, sortBy, sortOrder]);
+  }, [currentUser, page, priority, stateFilter, categoryFilter, sortBy, sortOrder]);
+
+  const handleExportCsv = () => {
+    if (works.length === 0) {
+      showToast('Export Error', 'No records to export in current view', 'warning');
+      return;
+    }
+    const headers = ['Rec ID', 'Work ID', 'Description', 'Category', 'State', 'District/IDA', 'MP Name', 'Sanction Amount (INR)', 'Total Disbursed (INR)', 'Priority', 'SLA Days'];
+    const rows = works.map((w) => [
+      w.work_rec_id,
+      w.work_id,
+      `"${w.description.replace(/"/g, '""')}"`,
+      w.category,
+      w.state_name,
+      `"${w.ida_name}"`,
+      `"${w.mp_name}"`,
+      w.sanction_amount,
+      w.total_disbursed,
+      w.priority,
+      w.days_rec_to_sanction,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `MPLADS_Works_${currentUser?.role || 'export'}_page${page}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Export Complete', `Exported ${works.length} records to CSV`, 'success');
+  };
 
   const handleSort = (column: string) => {
     if (sortBy === column) {
@@ -150,10 +201,18 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
           <span>
             Total Matching: <strong className="text-sky-400">{total.toLocaleString()}</strong> works
           </span>
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium text-xs transition-colors"
+            title="Export filtered records to CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
+          </button>
           {hasActiveFilters && (
             <button
               onClick={handleClearFilters}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors"
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors"
             >
               <RotateCcw className="w-3 h-3 text-amber-400" />
               <span>Reset Filters</span>
@@ -162,35 +221,76 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
         </div>
       </div>
 
+      {/* RBAC Jurisdiction Security Notice */}
+      {currentUser?.strict_isolation && currentUser?.role !== 'CENTRAL_AUDITOR' && (
+        <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-sky-500/5 to-transparent border border-amber-500/30 rounded-2xl flex items-center justify-between text-xs">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-semibold text-amber-300">
+                Statutory Multi-Tenant Isolation Active ({currentUser.role.replace(/_/g, ' ')})
+              </span>
+              <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                {currentUser.role === 'DISTRICT_AUTHORITY' && (
+                  <>Locked to jurisdiction: <strong className="text-white">{currentUser.district}, {currentUser.state}</strong>. Cross-district queries are restricted under Section 3.2 MPLADS Guidelines.</>
+                )}
+                {currentUser.role === 'STATE_NODAL_OFFICER' && (
+                  <>Locked to state: <strong className="text-white">{currentUser.state}</strong>. Cross-state queries are restricted under statutory RBAC.</>
+                )}
+                {currentUser.role === 'MP_USER' && (
+                  <>Locked to MP portfolio: <strong className="text-white">{currentUser.name} ({currentUser.constituency})</strong>.</>
+                )}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono uppercase px-2.5 py-1 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold shrink-0">
+            Tenant Isolated
+          </span>
+        </div>
+      )}
+
       {/* Filter Ribbon */}
       <form onSubmit={handleSearchSubmit} className="bg-[#131D31] border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center gap-3 shadow-lg">
         <div className="flex-1 min-w-[240px] relative">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
           <input
             type="text"
-            placeholder="Search by ID, description, MP, or district..."
+            placeholder={
+              isDistrictLocked
+                ? `Search projects within ${currentUser?.district} district...`
+                : "Search by ID, description, MP, or district..."
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-[#0B1120] border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
           />
         </div>
 
-        {/* State Filter Dropdown */}
-        <select
-          value={stateFilter}
-          onChange={(e) => {
-            setStateFilter(e.target.value);
-            setPage(1);
-          }}
-          className="bg-[#0B1120] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer max-w-[200px]"
-        >
-          <option value="">All States &amp; UTs</option>
-          {availableStates.map((st) => (
-            <option key={st.state_name} value={st.state_name}>
-              {st.state_name}
-            </option>
-          ))}
-        </select>
+        {/* State Filter Dropdown (Locked if user has state scope) */}
+        {isStateLocked ? (
+          <div className="flex items-center space-x-1.5 bg-[#0B1120] border border-amber-500/30 px-3 py-2 rounded-xl text-xs text-amber-300 font-mono">
+            <Lock className="w-3 h-3 text-amber-400" />
+            <span>{currentUser?.state}</span>
+          </div>
+        ) : (
+          <select
+            value={stateFilter}
+            onChange={(e) => {
+              setStateFilter(e.target.value);
+              setPage(1);
+            }}
+            className="bg-[#0B1120] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer max-w-[200px]"
+          >
+            <option value="">All States &amp; UTs</option>
+            {availableStates.map((st) => (
+              <option key={st.state_name} value={st.state_name}>
+                {st.state_name}
+              </option>
+            ))}
+          </select>
+        )}
 
         {/* Priority Filter */}
         <select

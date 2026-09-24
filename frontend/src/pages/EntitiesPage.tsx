@@ -4,6 +4,7 @@ import { MPProfile, VendorProfile } from '../types';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { MpDetailModal } from '../components/entities/MpDetailModal';
 import { VendorDetailModal } from '../components/entities/VendorDetailModal';
+import { useAuth } from '../context/AuthContext';
 import {
   Users,
   Briefcase,
@@ -14,6 +15,8 @@ import {
   Award,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -22,6 +25,7 @@ interface EntitiesPageProps {
 }
 
 export const EntitiesPage: React.FC<EntitiesPageProps> = ({ onOpenDossier }) => {
+  const { currentUser } = useAuth();
   const [subTab, setSubTab] = useState<'mps' | 'vendors'>('mps');
   const [mps, setMps] = useState<MPProfile[]>([]);
   const [vendors, setVendors] = useState<VendorProfile[]>([]);
@@ -51,17 +55,37 @@ export const EntitiesPage: React.FC<EntitiesPageProps> = ({ onOpenDossier }) => 
         })
         .finally(() => setLoading(false));
     }
-  }, [subTab, page, search]);
+  }, [currentUser, subTab, page, search]);
+
+  const jurisdictionLabel = currentUser?.role === 'DISTRICT_AUTHORITY'
+    ? `${currentUser.district} District (${currentUser.state})`
+    : currentUser?.role === 'STATE_NODAL_OFFICER'
+    ? `${currentUser.state} State`
+    : currentUser?.role === 'MP_USER'
+    ? `Hon. ${currentUser.name} (${currentUser.constituency})`
+    : 'National Directory (MoSPI / CAG)';
 
   return (
     <div className="flex-1 overflow-y-auto p-8 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#131D31] border border-slate-800 p-6 rounded-2xl">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Entity Intelligence &amp; Market Monopolies</h1>
+          <div className="flex items-center space-x-2">
+            <h1 className="text-xl font-bold text-white tracking-tight">Entity Intelligence &amp; Market Monopolies</h1>
+            {currentUser?.strict_isolation && currentUser?.role !== 'CENTRAL_AUDITOR' && (
+              <span className="flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-mono">
+                <Lock className="w-3 h-3" />
+                <span>Scoped</span>
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Cross-record tracking of Parliamentary Quotas, District Implementing Agencies, and Contractor Dominance (HHI). Click any card for deep portfolio audit.
+            Cross-record tracking of Parliamentary Quotas, District Implementing Agencies, and Contractor Dominance (HHI).
           </p>
+          <div className="mt-2 text-xs font-mono text-sky-400 flex items-center space-x-2">
+            <span className="text-slate-400">Authorized Territory:</span>
+            <span className="font-semibold text-slate-200">{jurisdictionLabel}</span>
+          </div>
         </div>
 
         {/* Tab Toggle */}
