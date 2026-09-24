@@ -103,6 +103,8 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
             return (
               <path
                 key={feature.id}
+                data-id={feature.id}
+                data-state={feature.name}
                 d={feature.d}
                 fill={fill}
                 stroke={isSelected ? '#FFFFFF' : '#0F172A'}
