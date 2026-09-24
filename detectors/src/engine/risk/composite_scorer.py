@@ -5,14 +5,16 @@ Combines independent detector findings into orthogonal Severity and Confidence a
 applies statutory policy overrides, and classifies works into actionable review priority tiers.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Any
-from collections import defaultdict
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
+
 from src.config import WEIGHTS
-from src.engine.detectors.base import Finding, AnomalyCategory
+from src.engine.detectors.base import AnomalyCategory, Finding
 
 
 class ReviewPriority(str, Enum):
@@ -26,10 +28,11 @@ class ReviewPriority(str, Enum):
 @dataclass
 class WorkRiskScore:
     """Two-axis risk assessment for a single work entity."""
+
     work_id: str
     work_rec_id: str
     composite_severity: float  # [0.0, 1.0]
-    composite_confidence: float# [0.0, 1.0]
+    composite_confidence: float  # [0.0, 1.0]
     priority: ReviewPriority
     findings_count: int
     findings: List[Finding]
@@ -52,7 +55,7 @@ class WorkRiskScore:
             "state_name": self.state_name,
             "ida_name": self.ida_name,
             "sanction_amount": self.sanction_amount,
-            "finding_codes": [f.detector_code for f in self.findings]
+            "finding_codes": [f.detector_code for f in self.findings],
         }
 
 
@@ -77,20 +80,22 @@ class CompositeRiskScorer:
 
             if not w_findings:
                 # Normal unflagged work
-                work_scores.append(WorkRiskScore(
-                    work_id=work_id,
-                    work_rec_id=rec_id,
-                    composite_severity=0.0,
-                    composite_confidence=float(row.get("dqi_score", 1.0)),
-                    priority=ReviewPriority.NORMAL,
-                    findings_count=0,
-                    findings=[],
-                    category_severities={},
-                    has_statutory_breach=False,
-                    state_name=row.get("STATE_NAME"),
-                    ida_name=row.get("IDA_NAME"),
-                    sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
-                ))
+                work_scores.append(
+                    WorkRiskScore(
+                        work_id=work_id,
+                        work_rec_id=rec_id,
+                        composite_severity=0.0,
+                        composite_confidence=float(row.get("dqi_score", 1.0)),
+                        priority=ReviewPriority.NORMAL,
+                        findings_count=0,
+                        findings=[],
+                        category_severities={},
+                        has_statutory_breach=False,
+                        state_name=row.get("STATE_NAME"),
+                        ida_name=row.get("IDA_NAME"),
+                        sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                    )
+                )
                 continue
 
             # Compute category-wise maximum severity
@@ -102,8 +107,12 @@ class CompositeRiskScorer:
                 cat = f.category.value
                 cat_severities[cat] = max(cat_severities[cat], f.severity)
                 cat_confidences[cat] = max(cat_confidences[cat], f.confidence)
-            statutory_count = sum(1 for f in w_findings if f.detector_code in {"COMP-D1", "COMP-D2", "COMP-D3", "COMP-D4"})
-            if statutory_count >= 1 and any(f.severity >= 0.65 for f in w_findings if f.category == AnomalyCategory.COMPLIANCE):
+            statutory_count = sum(
+                1 for f in w_findings if f.detector_code in {"COMP-D1", "COMP-D2", "COMP-D3", "COMP-D4"}
+            )
+            if statutory_count >= 1 and any(
+                f.severity >= 0.65 for f in w_findings if f.category == AnomalyCategory.COMPLIANCE
+            ):
                 has_statutory = True
 
             # Composite severity: 70% driven by the most severe anomaly category,
@@ -143,19 +152,21 @@ class CompositeRiskScorer:
             else:
                 priority = ReviewPriority.LOW
 
-            work_scores.append(WorkRiskScore(
-                work_id=work_id,
-                work_rec_id=rec_id,
-                composite_severity=comp_sev,
-                composite_confidence=comp_conf,
-                priority=priority,
-                findings_count=len(w_findings),
-                findings=w_findings,
-                category_severities=dict(cat_severities),
-                has_statutory_breach=has_statutory,
-                state_name=row.get("STATE_NAME"),
-                ida_name=row.get("IDA_NAME"),
-                sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0))
-            ))
+            work_scores.append(
+                WorkRiskScore(
+                    work_id=work_id,
+                    work_rec_id=rec_id,
+                    composite_severity=comp_sev,
+                    composite_confidence=comp_conf,
+                    priority=priority,
+                    findings_count=len(w_findings),
+                    findings=w_findings,
+                    category_severities=dict(cat_severities),
+                    has_statutory_breach=has_statutory,
+                    state_name=row.get("STATE_NAME"),
+                    ida_name=row.get("IDA_NAME"),
+                    sanction_amount=float(row.get("SANCTION_AMOUNT", 0.0)),
+                )
+            )
 
         return work_scores

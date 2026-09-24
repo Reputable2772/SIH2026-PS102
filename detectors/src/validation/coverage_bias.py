@@ -5,9 +5,11 @@ Tests whether anomaly flag rates correlate spuriously with state-level data comp
 or digitization coverage as mandated by AC-17.
 """
 
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 import pandas as pd
 from scipy.stats import spearmanr
+
 from src.engine.detectors.base import Finding
 
 
@@ -25,7 +27,7 @@ class CoverageBiasAuditor:
                 "spearman_rho": 0.0,
                 "p_value": 1.0,
                 "has_coverage_bias": False,
-                "interpretation": "Insufficient data to compute correlation."
+                "interpretation": "Insufficient data to compute correlation.",
             }
 
         # Find unique flagged works per state
@@ -33,11 +35,15 @@ class CoverageBiasAuditor:
         df = df_works.copy()
         df["is_flagged"] = df["WORK_RECOMMENDATION_DTL_ID"].isin(flagged_rec_ids)
 
-        state_stats = df.groupby("STATE_NAME").agg(
-            total_works=("WORK_RECOMMENDATION_DTL_ID", "count"),
-            flagged_works=("is_flagged", "sum"),
-            mean_dqi=("dqi_score", "mean")
-        ).reset_index()
+        state_stats = (
+            df.groupby("STATE_NAME")
+            .agg(
+                total_works=("WORK_RECOMMENDATION_DTL_ID", "count"),
+                flagged_works=("is_flagged", "sum"),
+                mean_dqi=("dqi_score", "mean"),
+            )
+            .reset_index()
+        )
 
         # Filter states with >= 10 works
         state_stats = state_stats[state_stats["total_works"] >= 10].copy()
@@ -47,7 +53,7 @@ class CoverageBiasAuditor:
                 "spearman_rho": 0.0,
                 "p_value": 1.0,
                 "has_coverage_bias": False,
-                "interpretation": "Too few states to evaluate rank correlation."
+                "interpretation": "Too few states to evaluate rank correlation.",
             }
 
         state_stats["flag_rate"] = state_stats["flagged_works"] / state_stats["total_works"]
@@ -71,8 +77,10 @@ class CoverageBiasAuditor:
             "status": "PASS" if not has_bias else "WARNING",
             "interpretation": (
                 f"Spearman rank correlation between state data completeness (DQI) and anomaly flag rate is {rho:.3f} (p={p_val:.4f}). "
-                + ("Flag rates reflect genuine substantive irregularities independent of reporting coverage."
-                   if not has_bias else
-                   "Warning: Flag rates correlate with reporting completeness. High-completeness states may show inflated flag counts.")
-            )
+                + (
+                    "Flag rates reflect genuine substantive irregularities independent of reporting coverage."
+                    if not has_bias
+                    else "Warning: Flag rates correlate with reporting completeness. High-completeness states may show inflated flag counts."
+                )
+            ),
         }

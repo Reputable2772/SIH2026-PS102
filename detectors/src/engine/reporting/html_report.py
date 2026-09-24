@@ -8,8 +8,8 @@ auditors, district authorities, MoSPI oversight committees, and browser verifica
 
 import html
 import json
-from typing import Any
 from datetime import datetime
+from typing import Any
 
 
 def _sanitize(val: Any) -> str:
@@ -24,7 +24,7 @@ def generate_dossier_html(dossier: Any) -> str:
     Generates a standalone, beautiful HTML audit dossier for a single work.
     """
     evidence_json = json.dumps(dossier.q4_supporting_evidence, indent=2, default=str)
-    
+
     # Priority badge color
     prio = getattr(dossier, "priority", "NORMAL")
     prio_color_map = {
@@ -46,9 +46,10 @@ def generate_dossier_html(dossier: Any) -> str:
         for i, act in enumerate(dossier.next_review_actions, 1)
     )
 
+    raw_findings = getattr(dossier, "constituent_findings", getattr(dossier, "findings", []))
     findings_badges = "".join(
-        f'<span class="badge badge-anomaly">{_sanitize(f.detector_code)}</span>'
-        for f in getattr(dossier, "findings", [])
+        f'<span class="badge badge-anomaly">{_sanitize(f.get("detector_code") if isinstance(f, dict) else getattr(f, "detector_code", ""))}</span>'
+        for f in raw_findings
     )
 
     return f"""<!DOCTYPE html>
@@ -260,19 +261,19 @@ def generate_audit_report_html(results: Any, title: str = "MPLADS Intelligence E
         .header {{ max-width: 1280px; margin: 0 auto 2rem; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; }}
         h1 {{ font-size: 1.85rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; }}
         .subtitle {{ color: var(--text-muted); font-size: 0.95rem; margin-top: 0.25rem; }}
-        
+
         .kpi-container {{ max-width: 1280px; margin: 0 auto 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }}
         .kpi-card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem; }}
         .kpi-val {{ font-size: 1.9rem; font-weight: 800; color: #fff; margin-bottom: 0.25rem; }}
         .kpi-title {{ font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }}
 
         .table-section {{ max-width: 1280px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }}
-        
+
         .controls-bar {{ padding: 1.25rem 1.5rem; background: var(--surface-alt); border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: center; }}
         .search-box {{ flex: 1; min-width: 250px; position: relative; }}
         .search-input {{ width: 100%; background: #0b0f19; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1rem; color: #fff; font-size: 0.9rem; outline: none; }}
         .search-input:focus {{ border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }}
-        
+
         .filter-buttons {{ display: flex; gap: 0.5rem; flex-wrap: wrap; }}
         .btn-filter {{ background: #0b0f19; border: 1px solid var(--border); color: var(--text-muted); padding: 0.45rem 0.9rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }}
         .btn-filter.active, .btn-filter:hover {{ background: var(--accent); color: #0b0f19; border-color: var(--accent); }}
@@ -281,7 +282,7 @@ def generate_audit_report_html(results: Any, title: str = "MPLADS Intelligence E
         th {{ background: #131a2a; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.9rem 1.2rem; border-bottom: 1px solid var(--border); }}
         td {{ padding: 0.9rem 1.2rem; border-bottom: 1px solid #1f293d; }}
         tr:hover td {{ background: rgba(56, 189, 248, 0.04); }}
-        
+
         .badge {{ padding: 0.25rem 0.65rem; border-radius: 9999px; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.03em; }}
         .anomaly-tag {{ display: inline-block; background: #0f172a; border: 1px solid var(--border); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; color: #38bdf8; font-family: monospace; }}
 

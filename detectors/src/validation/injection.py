@@ -5,8 +5,10 @@ Performs mathematical stress tests to verify scoring monotonicity, sensitivity,
 and zero-variance edge cases as mandated by AC-13.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
 import pandas as pd
+
 from src.engine.detectors import CoreDetectionEngine
 from src.engine.risk.composite_scorer import CompositeRiskScorer, ReviewPriority
 
@@ -38,7 +40,7 @@ class AnomalyInjectionTester:
             "first_payment_date": pd.Timestamp("2025-02-01"),
             "last_payment_date": pd.Timestamp("2025-05-01"),
             "house": "LOK_SABHA",
-            "dqi_score": 0.95
+            "dqi_score": 0.95,
         }
 
         delays = [20, 50, 90, 150, 300]
@@ -60,14 +62,14 @@ class AnomalyInjectionTester:
             priorities.append(scores[0].priority.value)
 
         # Verify monotonic non-decreasing order
-        is_monotonic = all(severities[i] <= severities[i+1] for i in range(len(severities)-1))
+        is_monotonic = all(severities[i] <= severities[i + 1] for i in range(len(severities) - 1))
         return {
             "test": "monotonicity",
             "delays_tested": delays,
             "severities": severities,
             "priorities": priorities,
             "is_monotonic": is_monotonic,
-            "status": "PASS" if is_monotonic else "FAIL"
+            "status": "PASS" if is_monotonic else "FAIL",
         }
 
     @staticmethod
@@ -91,7 +93,7 @@ class AnomalyInjectionTester:
                 "dqi_score": 0.90,
                 "house": "LOK_SABHA",
                 "total_disbursed": 500000.0,
-                "payment_count": 1
+                "payment_count": 1,
             }
             for i in range(25)
         ]
@@ -110,7 +112,7 @@ class AnomalyInjectionTester:
             "dqi_score": 0.95,
             "house": "LOK_SABHA",
             "total_disbursed": 5000000.0,
-            "payment_count": 1
+            "payment_count": 1,
         }
         df = pd.DataFrame(cohort + [outlier])
 
@@ -130,5 +132,5 @@ class AnomalyInjectionTester:
             "outlier_priority": outlier_score.priority.value,
             "has_fin_d5_finding": has_cost_finding,
             "is_elevated": is_elevated,
-            "status": "PASS" if (has_cost_finding and is_elevated) else "FAIL"
+            "status": "PASS" if (has_cost_finding and is_elevated) else "FAIL",
         }

@@ -6,13 +6,15 @@ the 5 Core Governance Questions mandated by FR-12 and provides actionable review
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from src.engine.risk.composite_scorer import WorkRiskScore
 
 
 @dataclass
 class GovernanceDossier:
     """Standard audit and review dossier for human oversight."""
+
     work_id: str
     work_rec_id: str
     priority: str
@@ -31,6 +33,11 @@ class GovernanceDossier:
     next_review_actions: List[str]
     constituent_findings: List[Dict[str, Any]]
 
+    @property
+    def findings(self) -> List[Dict[str, Any]]:
+        """Backwards compatibility alias for constituent_findings."""
+        return self.constituent_findings
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "work_id": self.work_id,
@@ -46,18 +53,20 @@ class GovernanceDossier:
                 "why_unusual": self.q2_why_unusual,
                 "compared_with_what": self.q3_compared_with_what,
                 "supporting_evidence": self.q4_supporting_evidence,
-                "limitations": self.q5_limitations
+                "limitations": self.q5_limitations,
             },
             "next_review_actions": self.next_review_actions,
-            "findings": self.constituent_findings
+            "findings": self.constituent_findings,
         }
 
     def to_html(self, output_path: Any = None) -> str:
         """Renders self-contained interactive HTML dossier."""
         from src.engine.reporting.html_report import generate_dossier_html
+
         content = generate_dossier_html(self)
         if output_path:
             from pathlib import Path
+
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -86,7 +95,7 @@ class DossierBuilder:
                 q4_supporting_evidence={},
                 q5_limitations="Data coverage is limited to public e-SAKSHI dashboard milestones.",
                 next_review_actions=["Routine periodic progress monitoring."],
-                constituent_findings=[]
+                constituent_findings=[],
             )
 
         # Question 1: What happened?
@@ -113,7 +122,9 @@ class DossierBuilder:
             if "peer_cohort" in f.evidence:
                 comparisons.append(f"Peer cohort: {f.evidence['peer_cohort']}")
             elif "statutory_limit_days" in f.evidence:
-                comparisons.append(f"Statutory limit: {f.evidence['statutory_limit_days']} days (MPLADS Guidelines 2023)")
+                comparisons.append(
+                    f"Statutory limit: {f.evidence['statutory_limit_days']} days (MPLADS Guidelines 2023)"
+                )
             elif "district_hhi" in f.evidence:
                 comparisons.append("DOJ HHI concentration ceiling (2,500)")
             else:
@@ -147,5 +158,5 @@ class DossierBuilder:
             q4_supporting_evidence=evidence,
             q5_limitations=limitations,
             next_review_actions=actions,
-            constituent_findings=[f.to_dict() for f in findings]
+            constituent_findings=[f.to_dict() for f in findings],
         )
