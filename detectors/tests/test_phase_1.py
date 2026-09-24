@@ -198,3 +198,92 @@ def test_core_detection_engine_run(sample_works):
         assert len(f.evidence) > 0
         assert len(f.explanation) > 0
         assert len(f.next_review_action) > 0  # Mandated by AC-19
+
+# --- Added for Missing Coverage (FIN-D8, AGY-D11, FIN-D5, EXEC-D9) ---
+from src.engine.detectors.financial import TemporalDisbursementSpikeDetector, CostPeerOutlierDetector
+from src.engine.detectors.agency import IAOverloadDetector
+from src.engine.detectors.execution import ProgressExpenditureMismatchDetector
+
+def test_temporal_disbursement_spike_detector():
+    """Validates FIN-D8 flags >1M disbursed across >=3 payments in <=7 days."""
+    df = pd.DataFrame([
+        {
+            "WORK_RECOMMENDATION_DTL_ID": "201",
+            "total_disbursed": 1500000.0,
+            "payment_count": 4,
+            "first_payment_date": pd.Timestamp("2026-03-25"),
+            "last_payment_date": pd.Timestamp("2026-03-31"), # 6 days span
+        },
+        {
+            "WORK_RECOMMENDATION_DTL_ID": "202", # Normal span
+            "total_disbursed": 1500000.0,
+            "payment_count": 4,
+            "first_payment_date": pd.Timestamp("2026-01-01"),
+            "last_payment_date": pd.Timestamp("2026-06-01"),
+        }
+    ])
+    d = TemporalDisbursementSpikeDetector()
+    findings = d.detect(df)
+    assert len(findings) == 1
+    assert findings[0].work_rec_id == "201"
+
+def test_ia_overload_detector():
+    """Validates AGY-D11 flags agencies with >=10 delayed works and >=5M disbursed."""
+    records = []
+    # 12 overloaded works for one agency
+    for i in range(12):
+        records.append({
+            "WORK_RECOMMENDATION_DTL_ID": f"30{i}",
+            "ia_name": "OVERLOADED_PWD",
+            "IDA_NAME": "DISTRICT_A",
+            "days_since_sanction": 400, # > 365
+            "ACTUAL_END_DATE": pd.NaT,
+            "total_disbursed": 500000.0
+        })
+    df = pd.DataFrame(records)
+    d = IAOverloadDetector(min_delayed_works=10, min_total_expenditure=5000000.0)
+    findings = d.detect(df)
+    assert len(findings) == 12 # Flags all works belonging to the IA
+    assert findings[0].evidence["agency_delayed_works"] == 12
+
+def test_cost_peer_outlier_detector():
+    """Validates FIN-D5 correctly normalizes IQR and flags >2.5 Z-score anomalies."""
+    df = pd.DataFrame([{
+        "WORK_RECOMMENDATION_DTL_ID": "401",
+        "STATE_NAME": "TEST_STATE",
+        "WORK_CATEGORY": "Education",
+        "SANCTION_AMOUNT": 8500000.0 # Massive outlier
+    }])
+    
+    # Mock baseline engine with 500k median cost
+    class MockBaseline:
+        def get_peer_baseline(self, state, cat):
+            from dataclasses import dataclass
+            @dataclass
+            class Base:
+                sample_size: int = 50
+                cost_median: float = 500000.0
+                cost_iqr: float = 100000.0
+                cost_std: float = 80000.0
+                cohort_key: tuple = ("TEST_STATE", "Education")
+            return Base(), 1.0
+            
+    d = CostPeerOutlierDetector(z_threshold=2.5)
+    findings = d.detect(df, MockBaseline())
+    assert len(findings) == 1
+    assert findings[0].work_rec_id == "401"
+
+def test_progress_expenditure_mismatch_detector():
+    """Validates EXEC-D9 flags works >365d old with >=85% funds disbursed but no completion."""
+    df = pd.DataFrame([{
+        "WORK_RECOMMENDATION_DTL_ID": "501",
+        "SANCTION_AMOUNT": 1000000.0,
+        "total_disbursed": 900000.0, # 90%
+        "days_since_sanction": 400,
+        "ACTUAL_END_DATE": pd.NaT
+    }])
+    d = ProgressExpenditureMismatchDetector(min_ratio=0.85, min_days=365)
+    findings = d.detect(df)
+    assert len(findings) == 1
+    assert findings[0].work_rec_id == "501"
+
