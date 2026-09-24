@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mplads-intelligence-engine"
+version = "0.6.0"
+description = "MPLADS Autonomous Audit & Prioritization Engine (SIH PS102)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "pandas",
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "pyarrow",
+    "joblib",
+]
+
+[project.scripts]
+mplads-engine = "src.cli:main"
+
+[tool.setuptools.package-dir]
+"" = "detectors"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".direnv",
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, variables, etc.)
+    "I",   # isort
+]
+ignore = [
+    "E501",  # line too long (soft limit handled by ruff format)
+    "E402",  # module level import not at top of file (sys.path bootstrap)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["detectors", "scraper", "src"]

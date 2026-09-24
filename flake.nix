@@ -37,9 +37,6 @@
               scipy
               scikit-learn
               pyarrow
-              fastapi
-              uvicorn
-              jinja2
               joblib
               pytest
             ]
@@ -74,9 +71,6 @@
               scipy
               scikit-learn
               pyarrow
-              fastapi
-              uvicorn
-              jinja2
               joblib
               pytest
             ]
@@ -87,7 +81,8 @@
             name = "mplads-engine";
             runtimeInputs = [ pythonEnv ];
             text = ''
-              exec python3 -m src.cli "$@"
+              export PYTHONPATH=".:detectors:''${PYTHONPATH:-}"
+              exec python3 -m detectors.src.cli "$@"
             '';
           };
 
@@ -95,7 +90,8 @@
             name = "mplads-engine";
             runtimeInputs = [ pythonEnv ];
             text = ''
-              exec python3 -m src.cli "$@"
+              export PYTHONPATH=".:detectors:''${PYTHONPATH:-}"
+              exec python3 -m detectors.src.cli "$@"
             '';
           };
 

@@ -10,6 +10,7 @@ __pycache__/
 .venv/
 env/
 .pytest_cache/
+.ruff_cache/
 .PROJECT_OVERVIEW_FINAL.md
 
 # Scraped raw data & attachments
@@ -25,7 +26,3 @@ models/
 # Temporary directories & artifacts
 reports/
 scripts/
-
-# Frontend
-frontend/node_modules/
-frontend/dist/
