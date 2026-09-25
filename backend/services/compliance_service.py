@@ -48,6 +48,7 @@ class ComplianceService:
 
     def __init__(self):
         self.ds = DataService.get_instance()
+        self._cache: Dict[tuple, Dict[str, Any]] = {}
 
     @classmethod
     def get_instance(cls) -> "ComplianceService":
@@ -61,7 +62,18 @@ class ComplianceService:
         state: Optional[str] = None,
         district: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Evaluates comprehensive statutory compliance radar metrics."""
+        """Evaluates comprehensive statutory compliance radar metrics (with query cache)."""
+        cache_key = (
+            str(scope.get("role") if scope else "PUBLIC"),
+            str(scope.get("STATE_NAME") if scope else ""),
+            str(scope.get("IDA_NAME") if scope else ""),
+            str(scope.get("MP_NAME") if scope else ""),
+            str(state).strip().upper() if state else "ALL",
+            str(district).strip().upper() if district else "ALL",
+        )
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
         df = self.ds.df_works
         if df.empty:
             return {}
@@ -149,7 +161,7 @@ class ComplianceService:
             (sc_score * 0.35) + (st_score * 0.25) + (sanction_sla_pct * 0.20) + (prohibited_score * 0.20), 1
         )
 
-        return {
+        res = {
             "overall_compliance_score": composite_score,
             "overall_status": "COMPLIANT"
             if composite_score >= 85.0
@@ -219,3 +231,5 @@ class ComplianceService:
                 },
             ],
         }
+        self._cache[cache_key] = res
+        return res

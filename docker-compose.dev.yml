@@ -1,5 +1,16 @@
 services:
   backend:
+    mem_limit: 750m
+    mem_reservation: 400m
+    memswap_limit: 850m
+    cpus: 1.5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 750M
+        reservations:
+          memory: 400M
     command:
       - uvicorn
       - backend.main:app
@@ -25,6 +36,17 @@ services:
 
   frontend:
     image: localhost/prototype-autonomous-core_vite:latest
+    mem_limit: 250m
+    mem_reservation: 150m
+    memswap_limit: 300m
+    cpus: 0.5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 250M
+        reservations:
+          memory: 150M
     build:
       context: .
       dockerfile: docker/Dockerfile.vite

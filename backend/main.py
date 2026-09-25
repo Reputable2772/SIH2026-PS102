@@ -83,6 +83,16 @@ def health_check():
 frontend_dist = BASE_DIR / "frontend" / "dist"
 if frontend_dist.exists():
     from fastapi.staticfiles import StaticFiles
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    from starlette.responses import FileResponse, JSONResponse
+
+    @app.exception_handler(StarletteHTTPException)
+    async def spa_fallback_handler(request, exc):
+        if exc.status_code == 404 and not request.url.path.startswith("/api"):
+            index_path = frontend_dist / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 

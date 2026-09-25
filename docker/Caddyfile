@@ -1,28 +1,33 @@
-{env.DOMAIN} {
-    tls {
-        dns desec {
-            token {env.TOKEN}
-        }
-    }
+{env.DOMAIN}:443 {
+       tls {
+               dns desec {
+                       token {env.DESEC_TOKEN}
+               }
 
-    # Logging
-    log {
-        output stdout
-        format console
-    }
+               # Since my ISP sucks.
+               propagation_timeout 300s
+               propagation_delay 120s
+               resolvers 1.1.1.1
+       }
 
-    # Response compression
-    encode zstd gzip
+       # Logging
+       log {
+               output stdout
+               format console
+       }
 
-    # Reverse proxy API requests to FastAPI backend container
-    handle /api/* {
-        reverse_proxy backend:8000
-    }
+       # Response compression
+       encode zstd gzip
 
-    # Single Page Application (SPA) routing with HTML5 pushState fallback
-    handle {
-        root * /srv
-        try_files {path} /index.html
-        file_server
-    }
+       # Reverse proxy API requests to FastAPI backend container
+       handle /api/* {
+               reverse_proxy mplads-backend:8000
+       }
+
+       # Single Page Application (SPA) routing with HTML5 pushState fallback
+       handle {
+               root * /srv
+               try_files {path} /index.html
+               file_server
+       }
 }

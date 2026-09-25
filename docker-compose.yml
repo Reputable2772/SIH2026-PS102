@@ -5,6 +5,17 @@ services:
       context: .
       dockerfile: docker/Dockerfile.backend
     container_name: mplads-backend
+    mem_limit: 800m
+    mem_reservation: 400m
+    memswap_limit: 900m
+    cpus: 1.8
+    deploy:
+      resources:
+        limits:
+          cpus: "1.8"
+          memory: 800M
+        reservations:
+          memory: 400M
     ports:
       - "8000:8000"
     environment:
@@ -17,7 +28,7 @@ services:
       - mplads_audit_data:/app/storage
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -25,19 +36,35 @@ services:
 
   caddy:
     image: localhost/prototype-autonomous-core_caddy:latest
+    mem_limit: 120m
+    mem_reservation: 30m
+    memswap_limit: 150m
+    cpus: 0.2
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 120M
+        reservations:
+          memory: 30M
     build:
       context: .
       dockerfile: docker/Dockerfile.frontend
     container_name: mplads-caddy
     env_file: .env
     ports:
-      - "5173:5173"
+      - "443:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:5173/"]
+      test: [ "CMD", "curl", "-f", "http://127.0.0.1:5173/" ]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -46,3 +73,5 @@ services:
 volumes:
   mplads_audit_data:
     driver: local
+  caddy_data:
+  caddy_config:

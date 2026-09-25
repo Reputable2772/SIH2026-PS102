@@ -3,10 +3,12 @@ Duplicate & Ghost Work Detection Service (Pillar 4).
 Compares projects across description similarity, amount, location, category, and timeline.
 """
 
+import json
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
+from backend.core.config import PROCESSED_DIR
 from backend.services.data_service import DataService
 
 
@@ -31,6 +33,21 @@ class DuplicateService:
 
     def _precompute_candidates(self):
         """Scans representative project clusters to identify potential duplicate/ghost work pairs."""
+        cache_path = PROCESSED_DIR / "precomputed_duplicates.json"
+        if cache_path.exists():
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    self._candidate_pairs = json.load(f)
+                for p in self._candidate_pairs:
+                    if p["pair_id"] in self._resolutions:
+                        res = self._resolutions[p["pair_id"]]
+                        p["status"] = res["status"]
+                        p["resolution"] = res
+                print(f"[✓] DuplicateService loaded {len(self._candidate_pairs)} cached candidate pairs.")
+                return
+            except Exception as e:
+                print(f"[!] Error loading duplicate cache: {e}, recomputing...")
+
         df = self.ds.df_works
         if df.empty:
             return
@@ -155,6 +172,11 @@ class DuplicateService:
 
         # Sort descending by similarity score
         self._candidate_pairs = sorted(pairs_found, key=lambda p: p["similarity_pct"], reverse=True)
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(self._candidate_pairs, f)
+        except Exception:
+            pass
         # Apply any previously persisted resolutions from SQLite
         for p in self._candidate_pairs:
             if p["pair_id"] in self._resolutions:

@@ -1,0 +1,28 @@
+# =========================================================================
+# Low-Resource Profile for 1GB RAM Machines (e.g. Oracle Free Tier VM)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.lowram.yml up -d
+# =========================================================================
+services:
+  backend:
+    mem_limit: 650m
+    mem_reservation: 400m
+    cpus: 1.5
+    environment:
+      - DEBUG=false
+      - PYTHONUNBUFFERED=1
+      - MALLOC_ARENA_MAX=2
+    healthcheck:
+      interval: 45s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  caddy:
+    mem_limit: 80m
+    mem_reservation: 30m
+    cpus: 0.5
+    healthcheck:
+      interval: 45s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
