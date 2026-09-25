@@ -343,3 +343,50 @@ def test_strict_district_and_map_cross_tenant_blocking_and_soi_map(client):
 
     lats = extract_lats(coords)
     assert max(lats) > 37.0, f"Ladakh northern boundary must reach sovereign Karakoram/Pamir line, got {max(lats)}"
+
+
+def test_sno_dm_mp_cross_state_strict_isolation(client):
+    # 1. Persona switch to SNO Maharashtra keeps strict_isolation True
+    sno_switch = client.post("/api/auth/switch-persona", json={"persona_id": "state_nodal_officer"})
+    assert sno_switch.status_code == 200
+    sno_data = sno_switch.json()
+    assert sno_data["user"]["strict_isolation"] is True
+    sno_token = sno_data["access_token"]
+
+    # SNO Maharashtra querying works gets only Maharashtra works
+    sno_works = client.get("/api/works", headers={"Authorization": f"Bearer {sno_token}"})
+    assert sno_works.status_code == 200
+    assert sno_works.json()["total"] > 0
+    states = set(w["state_name"].upper() for w in sno_works.json()["items"])
+    assert states == {"MAHARASHTRA"}
+
+    # SNO Maharashtra cannot query Uttar Pradesh
+    sno_up = client.get("/api/works?state=UTTAR%20PRADESH", headers={"Authorization": f"Bearer {sno_token}"})
+    assert sno_up.status_code == 403
+    assert "access denied" in sno_up.json()["detail"].lower()
+
+    # 2. Persona switch to DM Pune keeps strict_isolation True
+    dm_switch = client.post("/api/auth/switch-persona", json={"persona_id": "district_authority"})
+    assert dm_switch.status_code == 200
+    dm_data = dm_switch.json()
+    assert dm_data["user"]["strict_isolation"] is True
+    dm_token = dm_data["access_token"]
+
+    # DM Pune cannot query UP works
+    dm_up = client.get("/api/works?state=UTTAR%20PRADESH", headers={"Authorization": f"Bearer {dm_token}"})
+    assert dm_up.status_code == 403
+
+    # DM Pune cannot inspect MP from Varanasi, UP
+    dm_mp_up = client.get("/api/mps/Narendra%20Modi", headers={"Authorization": f"Bearer {dm_token}"})
+    assert dm_mp_up.status_code == 403
+    assert "access denied" in dm_mp_up.json()["detail"].lower()
+
+    # 3. MP Supriya Sule (Maharashtra) cannot query UP works
+    mp_switch = client.post("/api/auth/switch-persona", json={"persona_id": "mp_user"})
+    assert mp_switch.status_code == 200
+    mp_token = mp_switch.json()["access_token"]
+
+    mp_up = client.get("/api/works?state=UTTAR%20PRADESH", headers={"Authorization": f"Bearer {mp_token}"})
+    assert mp_up.status_code == 403
+    assert "access denied" in mp_up.json()["detail"].lower()
+

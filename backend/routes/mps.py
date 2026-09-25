@@ -107,6 +107,14 @@ def get_mp_detail(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Access Denied: MP belongs to state '{target_mp['state_name']}', outside your state jurisdiction.",
                 )
+        elif role == UserRole.DISTRICT_AUTHORITY:
+            ida_name = str(scope.get("IDA_NAME", "")).upper()
+            district_mps = ds.get_mps_for_district(ida_name)
+            if target_mp["mp_name"] not in district_mps:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access Denied: MP '{target_mp['mp_name']}' has no projects in your district jurisdiction ({ida_name}).",
+                )
 
     # Get works recommended by this MP, scoped to tenant
     works_sub = ds.apply_tenant_filter(

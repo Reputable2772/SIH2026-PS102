@@ -1,0 +1,29 @@
+# Version Control
+.git
+.gitignore
+
+# Frontend build & dependencies
+frontend/node_modules
+frontend/dist
+frontend/.pnpm-store
+
+# Python byte code and virtualenvs
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+.direnv
+venv
+.venv
+*.egg-info
+build
+dist
+
+# Temporary and Scratch files
+scratch
+.DS_Store
+*.log

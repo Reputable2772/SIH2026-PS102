@@ -42,8 +42,8 @@ COPY data /app/data
 COPY models /app/models
 COPY backend /app/backend
 
-# Create runtime directory for SQLite audit store
-RUN mkdir -p /app/backend/data
+# Create runtime directories for SQLite audit store and persistent data
+RUN mkdir -p /app/storage /app/backend/data
 
 EXPOSE 8000
 

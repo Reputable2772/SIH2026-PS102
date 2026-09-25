@@ -167,7 +167,10 @@ def switch_persona(payload: SwitchPersonaRequest):
         base_user = DEMO_PERSONAS[persona_id]
         user = base_user.model_copy()
         if payload.strict_isolation is not None:
-            user.strict_isolation = payload.strict_isolation
+            if user.role in (UserRole.CENTRAL_AUDITOR, UserRole.CITIZEN):
+                user.strict_isolation = False
+            else:
+                user.strict_isolation = payload.strict_isolation
 
     # Issue signed JWT with embedded user profile
     token = create_access_token(

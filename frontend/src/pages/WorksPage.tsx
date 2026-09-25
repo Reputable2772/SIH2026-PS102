@@ -82,6 +82,8 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
       } else if (currentUser.role === 'STATE_NODAL_OFFICER' && currentUser.state) {
         setStateFilter(currentUser.state);
       }
+    } else {
+      setStateFilter('');
     }
   }, [currentUser]);
 
@@ -106,6 +108,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
 
   const isDistrictLocked = currentUser?.strict_isolation && currentUser?.role === 'DISTRICT_AUTHORITY';
   const isStateLocked = currentUser?.strict_isolation && (currentUser?.role === 'STATE_NODAL_OFFICER' || currentUser?.role === 'DISTRICT_AUTHORITY');
+  const isMpLocked = currentUser?.strict_isolation && currentUser?.role === 'MP_USER';
 
   const fetchWorks = async () => {
     setLoading(true);
@@ -115,6 +118,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
         priority: priority || undefined,
         state: isStateLocked ? (currentUser?.state || undefined) : (stateFilter.trim() || undefined),
         district: isDistrictLocked ? (currentUser?.district || undefined) : undefined,
+        mp_name: isMpLocked ? (currentUser?.mp_name || undefined) : undefined,
         category: categoryFilter.trim() || undefined,
         sort_by: sortBy || undefined,
         sort_order: sortOrder,

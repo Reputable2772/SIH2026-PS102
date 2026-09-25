@@ -30,7 +30,7 @@ export const PersonaSwitcherModal: React.FC<PersonaSwitcherModalProps> = ({ isOp
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'presets' | 'mp' | 'district' | 'state'>('presets');
-  const [strictIsolation, setStrictIsolation] = useState<boolean>(currentUser?.strict_isolation ?? true);
+  const [strictIsolation, setStrictIsolation] = useState<boolean>(true);
 
   // MP Search state
   const [mpSearch, setMpSearch] = useState<string>('');
@@ -55,7 +55,10 @@ export const PersonaSwitcherModal: React.FC<PersonaSwitcherModalProps> = ({ isOp
 
   useEffect(() => {
     if (!isOpen) return;
-    setStrictIsolation(currentUser?.strict_isolation ?? true);
+    const isLocalizedRole =
+      currentUser?.role &&
+      ['STATE_NODAL_OFFICER', 'DISTRICT_AUTHORITY', 'MP_USER'].includes(currentUser.role);
+    setStrictIsolation(isLocalizedRole ? (currentUser?.strict_isolation ?? true) : true);
 
     // Preload states
     api.getStateMapMetrics().then((data) => {
@@ -147,9 +150,10 @@ export const PersonaSwitcherModal: React.FC<PersonaSwitcherModalProps> = ({ isOp
   };
 
   const handleSelectPreset = async (presetId: string, label: string) => {
+    const isLocalized = ['state_nodal_officer', 'district_authority', 'mp_user'].includes(presetId);
     await switchDynamicPersona({
       persona_id: presetId,
-      strict_isolation: strictIsolation,
+      strict_isolation: isLocalized ? strictIsolation : false,
     });
     showToast('Persona Switched', `Active role updated to ${label}`, 'info');
     onClose();

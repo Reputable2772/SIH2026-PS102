@@ -113,6 +113,7 @@ class ApiClient {
     query?: string;
     state?: string;
     district?: string;
+    mp_name?: string;
     category?: string;
     priority?: string;
     sort_by?: string;
@@ -124,6 +125,7 @@ class ApiClient {
     if (params.query) searchParams.set('query', params.query);
     if (params.state) searchParams.set('state', params.state);
     if (params.district) searchParams.set('district', params.district);
+    if (params.mp_name) searchParams.set('mp_name', params.mp_name);
     if (params.category) searchParams.set('category', params.category);
     if (params.priority) searchParams.set('priority', params.priority);
     if (params.sort_by) searchParams.set('sort_by', params.sort_by);

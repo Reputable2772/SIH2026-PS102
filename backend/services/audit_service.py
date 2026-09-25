@@ -3,6 +3,7 @@ SQLite Persistence Service for AC-19 Review Actions & Audit Trail.
 """
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,7 +11,7 @@ from typing import Any, Dict, List
 
 from backend.core.config import BASE_DIR
 
-DB_PATH = BASE_DIR / "backend" / "data" / "audit_store.db"
+DB_PATH = Path(os.environ.get("AUDIT_DB_PATH", str(BASE_DIR / "backend" / "data" / "audit_store.db")))
 
 
 class AuditService:

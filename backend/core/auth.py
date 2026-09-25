@@ -248,8 +248,11 @@ def get_tenant_scope(user: UserProfile = Depends(get_current_user)) -> Dict[str,
                 scope["STATE_NAME"] = user.state.upper()
             if user.district:
                 scope["IDA_NAME"] = user.district.upper()
-        elif user.role == UserRole.MP_USER and user.mp_name:
-            scope["MP_NAME"] = user.mp_name
+        elif user.role == UserRole.MP_USER:
+            if user.mp_name:
+                scope["MP_NAME"] = user.mp_name
+            if user.state:
+                scope["STATE_NAME"] = user.state.upper()
 
     return scope
 
@@ -297,6 +300,12 @@ def validate_tenant_query(
 
     elif role == UserRole.MP_USER:
         user_mp = str(scope.get("MP_NAME", "")).lower()
+        user_state = str(scope.get("STATE_NAME", "")).upper()
+        if user_state and state and state.strip().upper() != user_state:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access Denied: As Member of Parliament representing {user_state}, querying projects in '{state}' is strictly prohibited under statutory RBAC.",
+            )
         if mp_name:
             mp_toks = [t.lower() for t in str(mp_name).split() if len(t) > 2]
             if mp_toks and not all(t in user_mp for t in mp_toks):

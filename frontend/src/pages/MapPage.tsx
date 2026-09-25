@@ -3,6 +3,8 @@ import { api } from '../api/client';
 import { CanonicalWork, DistrictMetric, StateMapMetric } from '../types';
 import { PriorityBadge } from '../components/common/PriorityBadge';
 import { IndiaSvgMap } from '../components/map/IndiaSvgMap';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import {
   MapPin,
   Building,
@@ -29,6 +31,9 @@ interface MapPageProps {
 }
 
 export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
+  const { currentUser } = useAuth();
+  const { showToast } = useToast();
+
   const [states, setStates] = useState<StateMapMetric[]>([]);
   const [selectedState, setSelectedState] = useState<StateMapMetric | null>(null);
   const [districts, setDistricts] = useState<DistrictMetric[]>([]);
@@ -48,10 +53,17 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
     api.getStateMapMetrics().then((data) => {
       setStates(data);
       if (data.length > 0) {
-        setSelectedState(data[0]);
+        if (currentUser?.strict_isolation && currentUser?.state) {
+          const userSt = data.find(
+            (s) => s.state_name.toLowerCase().trim() === currentUser.state!.toLowerCase().trim()
+          );
+          setSelectedState(userSt || data[0]);
+        } else {
+          setSelectedState(data[0]);
+        }
       }
     });
-  }, []);
+  }, [currentUser]);
 
   const handleSelectStateByName = async (stateName: string) => {
     const found = states.find(
@@ -69,6 +81,20 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
   };
 
   const handleSelectState = async (st: StateMapMetric) => {
+    if (
+      currentUser?.strict_isolation &&
+      (currentUser.role === 'STATE_NODAL_OFFICER' || currentUser.role === 'DISTRICT_AUTHORITY') &&
+      currentUser.state &&
+      st.state_name.toLowerCase().trim() !== currentUser.state.toLowerCase().trim()
+    ) {
+      showToast(
+        'Jurisdiction Restricted',
+        `As ${currentUser.role === 'DISTRICT_AUTHORITY' ? 'District Authority' : 'State Nodal Officer'}, your statutory jurisdiction is strictly isolated to ${currentUser.state}.`,
+        'warning'
+      );
+      return;
+    }
+
     setSelectedState(st);
     setSelectedDistrict(null);
     setViewLevel('state');
@@ -76,8 +102,9 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
     try {
       const dists = await api.getDistrictsForState(st.state_name);
       setDistricts(dists);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load districts:', err);
+      showToast('Access Denied', err.message || 'Restricted by multi-tenant RBAC boundary', 'error');
     } finally {
       setLoadingDistricts(false);
     }
@@ -88,6 +115,23 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
     newSortBy = sortBy,
     newSortOrder = sortOrder
   ) => {
+    if (
+      currentUser?.strict_isolation &&
+      currentUser.role === 'DISTRICT_AUTHORITY' &&
+      currentUser.district
+    ) {
+      const dName = d.district_name.toLowerCase();
+      const uDist = currentUser.district.toLowerCase();
+      if (!dName.includes(uDist) && !uDist.includes(dName)) {
+        showToast(
+          'District Restricted',
+          `As District Magistrate of ${currentUser.district}, cross-district querying for ${d.district_name} is restricted under statutory RBAC.`,
+          'warning'
+        );
+        return;
+      }
+    }
+
     setSelectedDistrict(d);
     setViewLevel('district');
     setLoadingWorks(true);
@@ -95,13 +139,15 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
       const res = await api.searchWorks({
         state: selectedState?.state_name,
         district: d.district_name,
+        mp_name: currentUser?.strict_isolation && currentUser?.role === 'MP_USER' ? (currentUser.mp_name || undefined) : undefined,
         sort_by: newSortBy,
         sort_order: newSortOrder,
         page_size: 50,
       });
       setDistrictWorks(res.items);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load district works:', err);
+      showToast('Access Denied', err.message || 'Restricted by multi-tenant RBAC boundary', 'error');
     } finally {
       setLoadingWorks(false);
     }

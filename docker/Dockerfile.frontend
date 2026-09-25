@@ -5,8 +5,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Enable pnpm via Corepack
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Enable pnpm via Corepack matching lockfile v9
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # Copy dependency manifests
 COPY frontend/package.json frontend/pnpm-lock.yaml ./

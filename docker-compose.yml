@@ -11,8 +11,9 @@ services:
       - PORT=8000
       - DEBUG=false
       - JWT_SECRET_KEY=mplads-sih-autonomous-core-secret-key-2026
+      - AUDIT_DB_PATH=/app/storage/audit_store.db
     volumes:
-      - mplads_audit_data:/app/backend/data
+      - mplads_audit_data:/app/storage
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
@@ -27,7 +28,7 @@ services:
       dockerfile: docker/Dockerfile.frontend
     container_name: mplads-frontend
     ports:
-      - "3000:80"
+      - "5173:80"
     depends_on:
       backend:
         condition: service_healthy
