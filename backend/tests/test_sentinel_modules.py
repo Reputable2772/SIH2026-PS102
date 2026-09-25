@@ -80,17 +80,20 @@ def test_investigations_lifecycle_and_calibration():
     note_res = client.post(
         f"/api/investigations/{case_id}/notes",
         json={"note": "Geotagged site photograph shows incomplete foundation."},
+        headers=headers,
     )
     assert note_res.status_code == 200
     assert len(note_res.json()["evidence_notes"]) >= 2
 
     # 5. Model calibration feedback loop
+    calib_headers = {"X-User-Role": "CENTRAL_AUDITOR"}
     calib_res = client.post(
         f"/api/investigations/{case_id}/calibrate",
         json={
             "feedback": "CONFIRMED_ANOMALY",
             "findings": "Physical completion was falsified as 85% whereas actual was 30%.",
         },
+        headers=calib_headers,
     )
     assert calib_res.status_code == 200
     assert calib_res.json()["calibration_feedback"] == "CONFIRMED_ANOMALY"
@@ -121,7 +124,8 @@ def test_recommendations_and_draft_letter():
     assert "urgency_score" in recs[0]
     assert "category" in recs[0]
 
-    # 2. Generate Draft Recommendation Letter
+    # 2. Generate Draft Recommendation Letter (Authorized as MP User)
+    mp_headers = {"X-Persona-Id": "mp_user"}
     letter_res = client.post(
         "/api/recommendations/draft-letter",
         json={
@@ -130,6 +134,7 @@ def test_recommendations_and_draft_letter():
             "constituency": "Baramati (Maharashtra)",
             "district_authority_name": "Pune District Collectorate",
         },
+        headers=mp_headers,
     )
     assert letter_res.status_code == 200
     letter = letter_res.json()
