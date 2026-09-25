@@ -28,15 +28,11 @@ def search_vendors(
         role = scope.get("role")
         if role == UserRole.DISTRICT_AUTHORITY:
             ida_name = str(scope.get("IDA_NAME", "")).upper()
-            sub_works = ds.df_works[
-                ds.df_works["IDA_NAME"].astype(str).str.upper().apply(lambda v: ida_name in v or v in ida_name)
-            ]
-            active_vendors = set(sub_works["primary_vendor"].dropna().unique())
+            active_vendors = ds.get_vendors_for_district(ida_name)
             vendors = [v for v in vendors if v["vendor_name"] in active_vendors]
         elif role == UserRole.STATE_NODAL_OFFICER:
             state_name = str(scope.get("STATE_NAME", "")).upper()
-            sub_works = ds.df_works[ds.df_works["STATE_NAME"].astype(str).str.upper() == state_name]
-            active_vendors = set(sub_works["primary_vendor"].dropna().unique())
+            active_vendors = ds.get_vendors_for_state(state_name)
             vendors = [v for v in vendors if v["vendor_name"] in active_vendors]
         elif role == UserRole.MP_USER:
             mp_name = str(scope.get("MP_NAME", "")).lower()

@@ -277,3 +277,64 @@ def test_strict_cross_district_prevention_and_entity_scoping(client):
     assert scoped_v.status_code == 200
     assert scoped_v.json()["total"] < 200  # Scoped to Pune, far less than 17,773 national vendors
 
+
+def test_strict_district_and_map_cross_tenant_blocking_and_soi_map(client):
+    # 1. DM Pune calling /api/districts should only receive their assigned district
+    dist_res = client.get("/api/districts", headers={"X-Persona-Id": "district_authority"})
+    assert dist_res.status_code == 200
+    dists = dist_res.json()
+    assert len(dists) == 1
+    assert "pune" in dists[0]["district_name"].lower()
+
+    # 2. DM Pune calling deep dive for another state/district must be blocked with 403
+    leak_dive = client.get(
+        "/api/districts/Karnataka/Bengaluru",
+        headers={"X-Persona-Id": "district_authority"},
+    )
+    assert leak_dive.status_code == 403
+    assert "strictly prohibited" in leak_dive.json()["detail"].lower() or "access denied" in leak_dive.json()["detail"].lower()
+
+    # 3. DM Pune calling /api/map/districts?state=Karnataka must be blocked with 403
+    map_dist_dm = client.get(
+        "/api/map/districts?state=Karnataka",
+        headers={"X-Persona-Id": "district_authority"},
+    )
+    assert map_dist_dm.status_code == 403
+
+    # 4. SNO Maharashtra calling /api/map/districts?state=Karnataka must be blocked with 403
+    map_dist_sno = client.get(
+        "/api/map/districts?state=Karnataka",
+        headers={"X-Persona-Id": "state_nodal_officer"},
+    )
+    assert map_dist_sno.status_code == 403
+
+    # 5. Central Auditor has national privileges across all districts and map indicators
+    auditor_dist = client.get(
+        "/api/map/districts?state=Karnataka",
+        headers={"X-Persona-Id": "central_auditor"},
+    )
+    assert auditor_dist.status_code == 200
+    assert len(auditor_dist.json()) > 0
+
+    # 6. Verify Survey of India boundaries in GeoJSON
+    gj_res = client.get("/api/map/geojson")
+    assert gj_res.status_code == 200
+    gj_data = gj_res.json()
+    assert len(gj_data["features"]) == 36
+    names = [f["properties"].get("NAME_1") for f in gj_data["features"]]
+    assert "Ladakh" in names
+    assert "Jammu and Kashmir" in names
+
+    # Verify northern crown latitude reaches official Survey of India boundary (>= 37.0 N)
+    ladakh_feat = [f for f in gj_data["features"] if f["properties"].get("NAME_1") == "Ladakh"][0]
+    coords = ladakh_feat["geometry"]["coordinates"]
+    def extract_lats(c):
+        if isinstance(c[0], (int, float)):
+            return [c[1]]
+        l = []
+        for item in c:
+            l.extend(extract_lats(item))
+        return l
+    lats = extract_lats(coords)
+    assert max(lats) > 37.0, f"Ladakh northern boundary must reach sovereign Karakoram/Pamir line, got {max(lats)}"
+

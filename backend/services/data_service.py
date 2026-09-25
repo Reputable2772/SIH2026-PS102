@@ -56,6 +56,9 @@ class DataService:
         self._precompute_mp_directory()
         self._precompute_vendor_directory()
 
+        # 5. Precompute Performance Caches & Inverted Indexes
+        self._precompute_performance_caches()
+
         print("[✓] MPLADS DataService initialized with precomputed caches.")
 
     @classmethod
@@ -304,21 +307,74 @@ class DataService:
             })
         self.vendor_directory = sorted(vendors, key=lambda x: x["total_disbursed_cr"], reverse=True)
 
-    # ------------------ Public Query APIs ------------------
+    def _precompute_performance_caches(self):
+        """Precomputes vector search columns, inverted lookup dictionaries, and static macro trends."""
+        # 1. Vectorized Search Columns
+        self.df_works["_search_blob"] = (
+            self.df_works["WORK_DESCRIPTION"].fillna("").astype(str).str.lower() + " " +
+            self.df_works["WORK_RECOMMENDATION_DTL_ID"].astype(str) + " " +
+            self.df_works["MP_NAME"].fillna("").astype(str).str.lower() + " " +
+            self.df_works["IDA_NAME"].fillna("").astype(str).str.lower()
+        )
+        self.df_works["_state_upper"] = self.df_works["STATE_NAME"].fillna("").astype(str).str.upper()
+        self.df_works["_ida_upper"] = self.df_works["IDA_NAME"].fillna("").astype(str).str.upper()
+        self.df_works["_priority_upper"] = self.df_works["priority"].fillna("LOW").astype(str).str.upper()
+        self.df_works["_category_lower"] = self.df_works["WORK_CATEGORY"].fillna("").astype(str).str.lower()
 
-    def get_national_overview(self, scope: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Calculates national or tenant-scoped overview KPIs."""
-        df = self.apply_tenant_filter(self.df_works, scope)
+        # 2. National Overview Cache
+        self._national_overview_cache = self._compute_overview_dict(self.df_works)
 
+        # 3. State Districts Cache
+        self._state_districts_cache = {}
+        for st in self.df_works["STATE_NAME"].dropna().unique():
+            st_key = str(st).strip().upper()
+            self._state_districts_cache[st_key] = self._compute_districts_for_state(st_key)
+
+        # 4. Inverted District & State Entity Maps (O(1) lookups)
+        self._district_mps_map = {
+            k: set(v) for k, v in self.df_works.groupby(self.df_works["_ida_upper"])["MP_NAME"].unique().to_dict().items()
+        }
+        self._district_vendors_map = {
+            k: set(v) for k, v in self.df_works.groupby(self.df_works["_ida_upper"])["primary_vendor"].unique().to_dict().items()
+        }
+        self._state_mps_map = {
+            k: set(v) for k, v in self.df_works.groupby(self.df_works["_state_upper"])["MP_NAME"].unique().to_dict().items()
+        }
+        self._state_vendors_map = {
+            k: set(v) for k, v in self.df_works.groupby(self.df_works["_state_upper"])["primary_vendor"].unique().to_dict().items()
+        }
+
+        # 5. Longitudinal Macro Trends Cache
+        trends_df = self.engine.analyze_trends(self.df_works)
+        records = []
+        if not trends_df.empty:
+            for r in trends_df.to_dict(orient="records"):
+                year_str = str(int(r.get("sanction_year", 2024)))
+                sanc = float(r.get("total_sanctioned_amount", 0.0))
+                disb = float(r.get("total_disbursed", 0.0))
+                works_cnt = int(r.get("total_sanctioned_works", 0))
+                comp_pct = float(r.get("completion_rate_pct", 0.0))
+                records.append({
+                    "tenure_or_year": year_str,
+                    "sanction_year": int(year_str) if year_str.isdigit() else 2024,
+                    "sanctioned_cr": round(sanc / 1e7, 2),
+                    "disbursed_cr": round(disb / 1e7, 2),
+                    "total_sanctioned_amount": sanc,
+                    "total_disbursed": disb,
+                    "works_count": works_cnt,
+                    "completion_rate": comp_pct,
+                    "completion_rate_pct": comp_pct,
+                    "avg_sanction_delay": float(r.get("avg_sanction_delay", 0.0)),
+                })
+        self.macro_trends = records
+
+    def _compute_overview_dict(self, df: pd.DataFrame) -> Dict[str, Any]:
         total_works = len(df)
         total_sanc = float(df["SANCTION_AMOUNT"].sum())
         total_disb = float(df["total_disbursed"].sum())
         completed_cnt = int(df["ACTUAL_END_DATE"].notna().sum()) if "ACTUAL_END_DATE" in df.columns else 0
         avg_dqi = float(df["dqi_score"].mean()) if "dqi_score" in df.columns else 0.85
-
         p_counts = df["priority"].value_counts().to_dict()
-
-        # Category breakdown
         cat_counts = df["WORK_CATEGORY"].value_counts().head(6).to_dict()
 
         return {
@@ -340,13 +396,8 @@ class DataService:
             "active_districts_count": int(df["IDA_NAME"].nunique()) if "IDA_NAME" in df.columns else 0,
         }
 
-    def get_state_choropleth_data(self) -> List[Dict[str, Any]]:
-        """Returns all state indicators for map coloring."""
-        return self.state_metrics_list
-
-    def get_districts_for_state(self, state_name: str) -> List[Dict[str, Any]]:
-        """Returns all districts under a state with bottleneck indicators."""
-        sub = self.df_works[self.df_works["STATE_NAME"].astype(str).str.upper() == state_name.upper()]
+    def _compute_districts_for_state(self, state_name: str) -> List[Dict[str, Any]]:
+        sub = self.df_works[self.df_works["_state_upper"] == state_name.upper()]
         if sub.empty:
             return []
 
@@ -363,7 +414,6 @@ class DataService:
             crit_cnt = int((d_sub["priority"] == "CRITICAL").sum())
             high_cnt = int((d_sub["priority"] == "HIGH").sum())
 
-            # Implementing Agency overload indicator
             top_ia = str(d_sub["ia_name"].mode().iloc[0]) if ("ia_name" in d_sub.columns and not d_sub["ia_name"].dropna().empty) else "District Authority"
 
             districts.append({
@@ -383,6 +433,51 @@ class DataService:
 
         return sorted(districts, key=lambda x: x["total_works"], reverse=True)
 
+    # ------------------ Public Query APIs ------------------
+
+    def get_national_overview(self, scope: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Calculates national or tenant-scoped overview KPIs (cached for nationwide view)."""
+        if not scope or not scope.get("strict_isolation", True) or scope.get("role") == "CENTRAL_AUDITOR":
+            if hasattr(self, "_national_overview_cache") and self._national_overview_cache:
+                return self._national_overview_cache
+
+        df = self.apply_tenant_filter(self.df_works, scope)
+        return self._compute_overview_dict(df)
+
+    def get_state_choropleth_data(self) -> List[Dict[str, Any]]:
+        """Returns all state indicators for map coloring."""
+        return self.state_metrics_list
+
+    def get_districts_for_state(self, state_name: str) -> List[Dict[str, Any]]:
+        """Returns all districts under a state with bottleneck indicators (cached for instant response)."""
+        st_key = str(state_name).strip().upper()
+        if hasattr(self, "_state_districts_cache") and st_key in self._state_districts_cache:
+            return self._state_districts_cache[st_key]
+        return self._compute_districts_for_state(st_key)
+
+    def get_mps_for_district(self, ida_name: str) -> set:
+        """Returns set of MP names active in a district."""
+        ida_q = str(ida_name).strip().upper()
+        matched = set()
+        for k, mps in getattr(self, "_district_mps_map", {}).items():
+            if ida_q in k or k in ida_q:
+                matched.update(mps)
+        return matched
+
+    def get_vendors_for_district(self, ida_name: str) -> set:
+        """Returns set of vendor names active in a district."""
+        ida_q = str(ida_name).strip().upper()
+        matched = set()
+        for k, vends in getattr(self, "_district_vendors_map", {}).items():
+            if ida_q in k or k in ida_q:
+                matched.update(vends)
+        return matched
+
+    def get_vendors_for_state(self, state_name: str) -> set:
+        """Returns set of vendor names active in a state."""
+        st_key = str(state_name).strip().upper()
+        return getattr(self, "_state_vendors_map", {}).get(st_key, set())
+
     def query_works(
         self,
         scope: Optional[Dict[str, Any]] = None,
@@ -401,10 +496,17 @@ class DataService:
         df = self.apply_tenant_filter(self.df_works, scope)
 
         if state:
-            df = df[df["STATE_NAME"].astype(str).str.upper() == state.upper()]
+            s_up = str(state).strip().upper()
+            if "_state_upper" in df.columns:
+                df = df[df["_state_upper"] == s_up]
+            else:
+                df = df[df["STATE_NAME"].astype(str).str.upper() == s_up]
         if district:
             d_q = str(district).strip().upper()
-            df = df[df["IDA_NAME"].astype(str).str.upper().apply(lambda v: d_q in v or v in d_q)]
+            if "_ida_upper" in df.columns:
+                df = df[df["_ida_upper"].apply(lambda v: d_q in v or v in d_q)]
+            else:
+                df = df[df["IDA_NAME"].astype(str).str.upper().apply(lambda v: d_q in v or v in d_q)]
         if mp_name:
             mp_toks = [t.lower() for t in str(mp_name).split() if len(t) > 2]
             if mp_toks:
@@ -412,18 +514,29 @@ class DataService:
             else:
                 df = df[df["MP_NAME"].astype(str).str.contains(mp_name, case=False, na=False)]
         if category:
-            df = df[df["WORK_CATEGORY"].astype(str).str.contains(category, case=False, na=False)]
+            cat_l = str(category).strip().lower()
+            if "_category_lower" in df.columns:
+                df = df[df["_category_lower"].str.contains(cat_l, regex=False, na=False)]
+            else:
+                df = df[df["WORK_CATEGORY"].astype(str).str.contains(category, case=False, na=False)]
         if priority:
-            df = df[df["priority"].astype(str).str.upper() == priority.upper()]
+            p_up = str(priority).strip().upper()
+            if "_priority_upper" in df.columns:
+                df = df[df["_priority_upper"] == p_up]
+            else:
+                df = df[df["priority"].astype(str).str.upper() == p_up]
         if query:
-            q_lower = query.lower()
-            mask = (
-                df["WORK_DESCRIPTION"].astype(str).str.lower().str.contains(q_lower, na=False) |
-                df["WORK_RECOMMENDATION_DTL_ID"].astype(str).str.contains(q_lower, na=False) |
-                df["MP_NAME"].astype(str).str.lower().str.contains(q_lower, na=False) |
-                df["IDA_NAME"].astype(str).str.lower().str.contains(q_lower, na=False)
-            )
-            df = df[mask]
+            q_lower = query.lower().strip()
+            if "_search_blob" in df.columns:
+                df = df[df["_search_blob"].str.contains(q_lower, regex=False, na=False)]
+            else:
+                mask = (
+                    df["WORK_DESCRIPTION"].astype(str).str.lower().str.contains(q_lower, na=False) |
+                    df["WORK_RECOMMENDATION_DTL_ID"].astype(str).str.contains(q_lower, na=False) |
+                    df["MP_NAME"].astype(str).str.lower().str.contains(q_lower, na=False) |
+                    df["IDA_NAME"].astype(str).str.lower().str.contains(q_lower, na=False)
+                )
+                df = df[mask]
 
         # Dynamic Sorting
         if sort_by:

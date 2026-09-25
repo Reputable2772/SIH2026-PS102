@@ -32,10 +32,7 @@ def search_mps(
         if role == UserRole.DISTRICT_AUTHORITY:
             # Only MPs whose projects are executed within this district
             ida_name = str(scope.get("IDA_NAME", "")).upper()
-            sub_works = ds.df_works[
-                ds.df_works["IDA_NAME"].astype(str).str.upper().apply(lambda v: ida_name in v or v in ida_name)
-            ]
-            district_mps = set(sub_works["MP_NAME"].dropna().unique())
+            district_mps = ds.get_mps_for_district(ida_name)
             mps = [m for m in mps if m["mp_name"] in district_mps]
         elif role == UserRole.MP_USER:
             user_mp = str(scope.get("MP_NAME", "")).lower()

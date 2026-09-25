@@ -56,6 +56,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(20);
   const [query, setQuery] = useState<string>('');
+  const [debouncedQuery, setDebouncedQuery] = useState<string>('');
   const [priority, setPriority] = useState<string>('');
   const [stateFilter, setStateFilter] = useState<string>('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
@@ -63,6 +64,15 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [loading, setLoading] = useState<boolean>(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Debounce query input by 300ms for smooth, responsive search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   // Sync state filter with user jurisdiction if strict isolation is active
   useEffect(() => {
@@ -85,7 +95,10 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
     if (initialFilter) {
       if (initialFilter.priority !== undefined) setPriority(initialFilter.priority);
       if (initialFilter.category !== undefined) setCategoryFilter(initialFilter.category);
-      if (initialFilter.query !== undefined) setQuery(initialFilter.query);
+      if (initialFilter.query !== undefined) {
+        setQuery(initialFilter.query);
+        setDebouncedQuery(initialFilter.query);
+      }
       if (initialFilter.state !== undefined) setStateFilter(initialFilter.state);
       setPage(1);
     }
@@ -98,7 +111,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
     setLoading(true);
     try {
       const data = await api.searchWorks({
-        query: query.trim() || undefined,
+        query: debouncedQuery.trim() || undefined,
         priority: priority || undefined,
         state: isStateLocked ? (currentUser?.state || undefined) : (stateFilter.trim() || undefined),
         district: isDistrictLocked ? (currentUser?.district || undefined) : undefined,
@@ -120,7 +133,7 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
 
   useEffect(() => {
     fetchWorks();
-  }, [currentUser, page, priority, stateFilter, categoryFilter, sortBy, sortOrder]);
+  }, [currentUser, page, priority, stateFilter, categoryFilter, sortBy, sortOrder, debouncedQuery]);
 
   const handleExportCsv = () => {
     if (works.length === 0) {

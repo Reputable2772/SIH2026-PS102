@@ -20,8 +20,11 @@ def get_platform_overview(scope: Dict[str, Any] = Depends(get_tenant_scope)):
 
 @router.get("/trends", response_model=List[Dict[str, Any]])
 def get_macro_trends():
-    """Returns longitudinal operational indicators (2020-2026)."""
+    """Returns longitudinal operational indicators (2020-2026), cached for instantaneous delivery."""
     ds = DataService.get_instance()
+    if hasattr(ds, "macro_trends") and ds.macro_trends:
+        return ds.macro_trends
+
     trends_df = ds.engine.analyze_trends(ds.df_works)
     if trends_df.empty:
         return []

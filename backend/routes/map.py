@@ -5,10 +5,11 @@ Map Spatial Indicators & GeoJSON Endpoints.
 import json
 from pathlib import Path
 from typing import Any, Dict, List
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from fastapi.responses import FileResponse
 
+from backend.core.auth import get_tenant_scope, validate_tenant_query
 from backend.services.data_service import DataService
 
 router = APIRouter(prefix="/map", tags=["Geospatial & Map"])
@@ -24,8 +25,12 @@ def get_state_map_metrics():
 
 
 @router.get("/districts", response_model=List[Dict[str, Any]])
-def get_state_districts(state: str = Query(..., description="Target State Name")):
-    """Returns district breakdowns with bottleneck and overload metrics for a specific state."""
+def get_state_districts(
+    state: str = Query(..., description="Target State Name"),
+    scope: Dict[str, Any] = Depends(get_tenant_scope),
+):
+    """Returns district breakdowns with bottleneck and overload metrics for a specific state, strictly scoped."""
+    validate_tenant_query(scope, state=state)
     ds = DataService.get_instance()
     return ds.get_districts_for_state(state)
 

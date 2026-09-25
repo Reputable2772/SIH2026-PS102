@@ -3,20 +3,39 @@ District & Constituency Intelligence Endpoints.
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from backend.core.auth import UserRole, get_tenant_scope, validate_tenant_query
 from backend.services.data_service import DataService
 
 router = APIRouter(prefix="/districts", tags=["District & Constituency Intelligence"])
 
 
 @router.get("", response_model=List[Dict[str, Any]])
-def get_all_districts(state: Optional[str] = Query(None, description="Optional State filter")):
-    """Returns districts matching the state or all nationwide districts."""
+def get_all_districts(
+    state: Optional[str] = Query(None, description="Optional State filter"),
+    scope: Dict[str, Any] = Depends(get_tenant_scope),
+):
+    """Returns districts matching the state or all nationwide districts, strictly scoped to active tenant."""
+    validate_tenant_query(scope, state=state)
     ds = DataService.get_instance()
+
+    # Enforce Role-Based Scoping
+    if scope.get("strict_isolation", True):
+        role = scope.get("role")
+        if role == UserRole.DISTRICT_AUTHORITY:
+            u_state = scope.get("STATE_NAME") or "Maharashtra"
+            u_dist = scope.get("IDA_NAME") or ""
+            all_dists = ds.get_districts_for_state(u_state)
+            d_q = str(u_dist).strip().upper()
+            return [d for d in all_dists if d_q in d["district_name"].upper() or d["district_name"].upper() in d_q]
+        elif role == UserRole.STATE_NODAL_OFFICER:
+            u_state = scope.get("STATE_NAME") or state or "Maharashtra"
+            return ds.get_districts_for_state(u_state)
+
     if state:
         return ds.get_districts_for_state(state)
-    
+
     # Return sample top districts nationally
     records = []
     for state_name in list(ds.state_metrics.keys())[:10]:
@@ -25,8 +44,13 @@ def get_all_districts(state: Optional[str] = Query(None, description="Optional S
 
 
 @router.get("/{state}/{district}", response_model=Dict[str, Any])
-def get_district_deep_dive(state: str, district: str):
+def get_district_deep_dive(
+    state: str,
+    district: str,
+    scope: Dict[str, Any] = Depends(get_tenant_scope),
+):
     """Returns detailed bottleneck and contractor concentration profile for an IDA."""
+    validate_tenant_query(scope, state=state, district=district)
     ds = DataService.get_instance()
     d_q = district.strip().upper()
     sub = ds.df_works[
