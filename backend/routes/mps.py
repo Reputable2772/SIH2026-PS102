@@ -2,7 +2,8 @@
 Members of Parliament (MP) Portfolio & Allocation Analytics Endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.core.auth import UserRole, get_tenant_scope, validate_tenant_query
@@ -51,7 +52,8 @@ def search_mps(
     if query:
         q = query.lower()
         mps = [
-            m for m in mps
+            m
+            for m in mps
             if q in m["mp_name"].lower() or q in m["constituency"].lower() or q in m["state_name"].lower()
         ]
 
@@ -108,23 +110,24 @@ def get_mp_detail(
 
     # Get works recommended by this MP, scoped to tenant
     works_sub = ds.apply_tenant_filter(
-        ds.df_works[ds.df_works["MP_NAME"].astype(str).str.lower() == target_mp["mp_name"].lower()],
-        scope
+        ds.df_works[ds.df_works["MP_NAME"].astype(str).str.lower() == target_mp["mp_name"].lower()], scope
     )
-    
+
     categories = works_sub["WORK_CATEGORY"].value_counts().head(6).to_dict()
     recent_works = []
     for _, row in works_sub.head(15).iterrows():
         rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
-        recent_works.append({
-            "work_rec_id": rec_id,
-            "description": str(row.get("WORK_DESCRIPTION", "Project")),
-            "category": str(row.get("WORK_CATEGORY", "General")),
-            "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
-            "total_disbursed": float(row.get("total_disbursed", 0.0)),
-            "priority": str(row.get("priority", "LOW")),
-            "days_rec_to_sanction": int(row.get("days_rec_to_sanction", 0)),
-        })
+        recent_works.append(
+            {
+                "work_rec_id": rec_id,
+                "description": str(row.get("WORK_DESCRIPTION", "Project")),
+                "category": str(row.get("WORK_CATEGORY", "General")),
+                "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
+                "total_disbursed": float(row.get("total_disbursed", 0.0)),
+                "priority": str(row.get("priority", "LOW")),
+                "days_rec_to_sanction": int(row.get("days_rec_to_sanction", 0)),
+            }
+        )
 
     return {
         "profile": target_mp,

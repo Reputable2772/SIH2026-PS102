@@ -142,6 +142,7 @@ def test_mps_and_vendors(client):
 
 def test_audit_actions_sqlite_persistence(client):
     import uuid
+
     test_rec_id = f"test_work_{uuid.uuid4().hex[:8]}"
 
     # 1. Unauthenticated or Citizen update attempt is blocked (403 Forbidden)
@@ -292,7 +293,10 @@ def test_strict_district_and_map_cross_tenant_blocking_and_soi_map(client):
         headers={"X-Persona-Id": "district_authority"},
     )
     assert leak_dive.status_code == 403
-    assert "strictly prohibited" in leak_dive.json()["detail"].lower() or "access denied" in leak_dive.json()["detail"].lower()
+    assert (
+        "strictly prohibited" in leak_dive.json()["detail"].lower()
+        or "access denied" in leak_dive.json()["detail"].lower()
+    )
 
     # 3. DM Pune calling /api/map/districts?state=Karnataka must be blocked with 403
     map_dist_dm = client.get(
@@ -328,13 +332,14 @@ def test_strict_district_and_map_cross_tenant_blocking_and_soi_map(client):
     # Verify northern crown latitude reaches official Survey of India boundary (>= 37.0 N)
     ladakh_feat = [f for f in gj_data["features"] if f["properties"].get("NAME_1") == "Ladakh"][0]
     coords = ladakh_feat["geometry"]["coordinates"]
+
     def extract_lats(c):
         if isinstance(c[0], (int, float)):
             return [c[1]]
-        l = []
+        lat_list = []
         for item in c:
-            l.extend(extract_lats(item))
-        return l
+            lat_list.extend(extract_lats(item))
+        return lat_list
+
     lats = extract_lats(coords)
     assert max(lats) > 37.0, f"Ladakh northern boundary must reach sovereign Karakoram/Pamir line, got {max(lats)}"
-

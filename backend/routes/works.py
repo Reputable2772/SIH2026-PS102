@@ -3,9 +3,10 @@ Works Explorer & Project Search Endpoints.
 """
 
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
 
 import pandas as pd
+from fastapi import APIRouter, Depends, HTTPException, Query
+
 from backend.core.auth import get_tenant_scope, validate_tenant_query
 from backend.services.data_service import DataService
 
@@ -20,7 +21,9 @@ def search_works(
     mp_name: Optional[str] = Query(None, description="MP filter"),
     category: Optional[str] = Query(None, description="Work category filter"),
     priority: Optional[str] = Query(None, description="Priority tier: CRITICAL, HIGH, MEDIUM, LOW"),
-    sort_by: Optional[str] = Query(None, description="Sort column: priority, sanction_amount, total_disbursed, days_rec_to_sanction, work_rec_id"),
+    sort_by: Optional[str] = Query(
+        None, description="Sort column: priority, sanction_amount, total_disbursed, days_rec_to_sanction, work_rec_id"
+    ),
     sort_order: Optional[str] = Query("desc", description="Sort direction: asc or desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
@@ -68,6 +71,7 @@ def get_work_details(
 
     # Redact vendor if viewer lacks unredacted vendor permissions
     from backend.core.auth import redact_vendor_name
+
     can_view = bool(scope.get("can_view_unredacted_vendors", False))
     if "primary_vendor" in row:
         row["primary_vendor"] = redact_vendor_name(row["primary_vendor"], can_view)

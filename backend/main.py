@@ -3,9 +3,9 @@ FastAPI Server Entrypoint for MPLADS Autonomous Audit & Intelligence Platform.
 """
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from backend.core.config import BASE_DIR, DEBUG
 from backend.routes.actions import router as actions_router
@@ -73,9 +73,11 @@ def health_check():
 frontend_dist = BASE_DIR / "frontend" / "dist"
 if frontend_dist.exists():
     from fastapi.staticfiles import StaticFiles
+
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

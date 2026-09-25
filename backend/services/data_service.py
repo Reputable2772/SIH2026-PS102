@@ -2,8 +2,8 @@
 High-Performance In-Memory Data Service for MPLADS Intelligence Platform.
 """
 
-from pathlib import Path
 from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 
@@ -35,13 +35,24 @@ class DataService:
                 self.df_works[col] = pd.to_numeric(self.df_works[col], errors="coerce").fillna(0.0)
 
         # Classify realistic functional sector categories across all works
-        act_series = self.df_works["ACTIVITY_NAME"] if "ACTIVITY_NAME" in self.df_works.columns else pd.Series([""] * len(self.df_works))
-        desc_series = self.df_works["WORK_DESCRIPTION"] if "WORK_DESCRIPTION" in self.df_works.columns else pd.Series([""] * len(self.df_works))
-        cat_series = self.df_works["WORK_CATEGORY"] if "WORK_CATEGORY" in self.df_works.columns else pd.Series([""] * len(self.df_works))
+        act_series = (
+            self.df_works["ACTIVITY_NAME"]
+            if "ACTIVITY_NAME" in self.df_works.columns
+            else pd.Series([""] * len(self.df_works))
+        )
+        desc_series = (
+            self.df_works["WORK_DESCRIPTION"]
+            if "WORK_DESCRIPTION" in self.df_works.columns
+            else pd.Series([""] * len(self.df_works))
+        )
+        cat_series = (
+            self.df_works["WORK_CATEGORY"]
+            if "WORK_CATEGORY" in self.df_works.columns
+            else pd.Series([""] * len(self.df_works))
+        )
 
         self.df_works["WORK_CATEGORY"] = [
-            self._classify_functional_category(a, d, c)
-            for a, d, c in zip(act_series, desc_series, cat_series)
+            self._classify_functional_category(a, d, c) for a, d, c in zip(act_series, desc_series, cat_series)
         ]
 
         # 2. Compute Priority & Rule Tags if missing
@@ -70,17 +81,37 @@ class DataService:
     @staticmethod
     def _classify_functional_category(activity: Any, desc: Any, existing_cat: Any) -> str:
         s = f"{activity} {desc}".lower()
-        if any(k in s for k in ["road", "pathway", "culvert", "pavement", "bridge", "cc road", "link road", "rcc drain"]):
+        if any(
+            k in s for k in ["road", "pathway", "culvert", "pavement", "bridge", "cc road", "link road", "rcc drain"]
+        ):
             return "Roads & Pathways"
         if any(k in s for k in ["water", "tanker", "borewell", "ro plant", "pipeline", "hand pump", "drinking", "jal"]):
             return "Drinking Water"
         if any(k in s for k in ["solar", "street light", "led", "high mast", "lighting", "light"]):
             return "Solar & Lighting"
-        if any(k in s for k in ["school", "class", "anganwadi", "library", "college", "education", "vidyalaya", "reading"]):
+        if any(
+            k in s for k in ["school", "class", "anganwadi", "library", "college", "education", "vidyalaya", "reading"]
+        ):
             return "Education & Schools"
-        if any(k in s for k in ["health", "hospital", "dispensary", "ambulance", "phc", "chc", "medical", "clinic", "ayush"]):
+        if any(
+            k in s
+            for k in ["health", "hospital", "dispensary", "ambulance", "phc", "chc", "medical", "clinic", "ayush"]
+        ):
             return "Public Health"
-        if any(k in s for k in ["community center", "community hall", "multipurpose", "gym", "hall", "crematorium", "burial", "samudayik", "shed"]):
+        if any(
+            k in s
+            for k in [
+                "community center",
+                "community hall",
+                "multipurpose",
+                "gym",
+                "hall",
+                "crematorium",
+                "burial",
+                "samudayik",
+                "shed",
+            ]
+        ):
             return "Community Infrastructure"
         if any(k in s for k in ["drain", "drainage", "toilet", "sanitation", "swachh", "sewerage", "shauchalaya"]):
             return "Sanitation & Drainage"
@@ -115,12 +146,18 @@ class DataService:
 
     def _load_masters_and_allocations(self):
         """Loads state/district lookup tables and MP allocations."""
-        self.states_df = pd.read_csv(DATA_DIR / "master_states.csv") if (DATA_DIR / "master_states.csv").exists() else pd.DataFrame()
-        self.districts_df = pd.read_csv(DATA_DIR / "master_districts.csv") if (DATA_DIR / "master_districts.csv").exists() else pd.DataFrame()
+        self.states_df = (
+            pd.read_csv(DATA_DIR / "master_states.csv") if (DATA_DIR / "master_states.csv").exists() else pd.DataFrame()
+        )
+        self.districts_df = (
+            pd.read_csv(DATA_DIR / "master_districts.csv")
+            if (DATA_DIR / "master_districts.csv").exists()
+            else pd.DataFrame()
+        )
 
         ls_path = DATA_DIR / "mplads_lok_sabha_allocations.csv"
         rs_path = DATA_DIR / "mplads_rajya_sabha_allocations.csv"
-        
+
         alloc_dfs = []
         if ls_path.exists():
             df_ls = pd.read_csv(ls_path)
@@ -133,17 +170,21 @@ class DataService:
 
         if alloc_dfs:
             self.allocations_df = pd.concat(alloc_dfs, ignore_index=True)
-            self.allocations_df["ALLOCATED_AMT"] = pd.to_numeric(self.allocations_df.get("ALLOCATED_AMT", 0), errors="coerce").fillna(0.0)
+            self.allocations_df["ALLOCATED_AMT"] = pd.to_numeric(
+                self.allocations_df.get("ALLOCATED_AMT", 0), errors="coerce"
+            ).fillna(0.0)
         else:
             self.allocations_df = pd.DataFrame()
 
     def _precompute_state_metrics(self):
         """Precomputes summary metrics for all 36 States & UTs with vectorized operations."""
         # Ensure fast boolean indicators
-        self.df_works["_is_completed"] = self.df_works["ACTUAL_END_DATE"].notna() if "ACTUAL_END_DATE" in self.df_works.columns else False
-        self.df_works["_is_critical"] = (self.df_works["priority"] == "CRITICAL")
-        self.df_works["_is_high"] = (self.df_works["priority"] == "HIGH")
-        self.df_works["_is_med"] = (self.df_works["priority"] == "MEDIUM")
+        self.df_works["_is_completed"] = (
+            self.df_works["ACTUAL_END_DATE"].notna() if "ACTUAL_END_DATE" in self.df_works.columns else False
+        )
+        self.df_works["_is_critical"] = self.df_works["priority"] == "CRITICAL"
+        self.df_works["_is_high"] = self.df_works["priority"] == "HIGH"
+        self.df_works["_is_med"] = self.df_works["priority"] == "MEDIUM"
 
         grouped = self.df_works.groupby("STATE_NAME")
         st_agg = grouped.agg(
@@ -154,7 +195,9 @@ class DataService:
             crit_cnt=("_is_critical", "sum"),
             high_cnt=("_is_high", "sum"),
             med_cnt=("_is_med", "sum"),
-            district_count=("IDA_NAME", "nunique") if "IDA_NAME" in self.df_works.columns else ("SANCTION_AMOUNT", "count"),
+            district_count=("IDA_NAME", "nunique")
+            if "IDA_NAME" in self.df_works.columns
+            else ("SANCTION_AMOUNT", "count"),
             mp_count=("MP_NAME", "nunique") if "MP_NAME" in self.df_works.columns else ("SANCTION_AMOUNT", "count"),
         ).reset_index()
 
@@ -173,48 +216,48 @@ class DataService:
             util_rate = round((disb_amt / max(sanc_amt, 1.0)) * 100, 1)
             comp_rate = round((completed_cnt / max(total_works, 1)) * 100, 1)
 
-            records.append({
-                "state_name": state_name,
-                "total_works": total_works,
-                "sanctioned_amount_cr": round(sanc_amt / 1e7, 2),
-                "disbursed_amount_cr": round(disb_amt / 1e7, 2),
-                "completed_works": completed_cnt,
-                "critical_alerts": crit_cnt,
-                "high_alerts": high_cnt,
-                "medium_alerts": med_cnt,
-                "total_alerts": crit_cnt + high_cnt + med_cnt,
-                "avg_dqi": 0.85,
-                "utilization_pct": min(util_rate, 100.0),
-                "completion_pct": min(comp_rate, 100.0),
-                "district_count": int(row["district_count"]),
-                "mp_count": int(row["mp_count"]),
-            })
+            records.append(
+                {
+                    "state_name": state_name,
+                    "total_works": total_works,
+                    "sanctioned_amount_cr": round(sanc_amt / 1e7, 2),
+                    "disbursed_amount_cr": round(disb_amt / 1e7, 2),
+                    "completed_works": completed_cnt,
+                    "critical_alerts": crit_cnt,
+                    "high_alerts": high_cnt,
+                    "medium_alerts": med_cnt,
+                    "total_alerts": crit_cnt + high_cnt + med_cnt,
+                    "avg_dqi": 0.85,
+                    "utilization_pct": min(util_rate, 100.0),
+                    "completion_pct": min(comp_rate, 100.0),
+                    "district_count": int(row["district_count"]),
+                    "mp_count": int(row["mp_count"]),
+                }
+            )
         self.state_metrics = {r["state_name"]: r for r in records}
         self.state_metrics_list = sorted(records, key=lambda x: x["sanctioned_amount_cr"], reverse=True)
 
     def _precompute_mp_directory(self):
         """Merges allocation quotas with actual project recommendations & expenditures."""
-        mp_works_agg = self.df_works.groupby("MP_NAME").agg(
-            works_count=("WORK_RECOMMENDATION_DTL_ID", "count"),
-            sanctioned_amount=("SANCTION_AMOUNT", "sum"),
-            disbursed_amount=("total_disbursed", "sum"),
-            completed_count=("_is_completed", "sum"),
-            critical_flags=("_is_critical", "sum"),
-            high_flags=("_is_high", "sum"),
-            state_name=("STATE_NAME", "first"),
-            house=("house", "first"),
-            constituency=("CONSTITUENCY", "first"),
-        ).reset_index()
+        mp_works_agg = (
+            self.df_works.groupby("MP_NAME")
+            .agg(
+                works_count=("WORK_RECOMMENDATION_DTL_ID", "count"),
+                sanctioned_amount=("SANCTION_AMOUNT", "sum"),
+                disbursed_amount=("total_disbursed", "sum"),
+                completed_count=("_is_completed", "sum"),
+                critical_flags=("_is_critical", "sum"),
+                high_flags=("_is_high", "sum"),
+                state_name=("STATE_NAME", "first"),
+                house=("house", "first"),
+                constituency=("CONSTITUENCY", "first"),
+            )
+            .reset_index()
+        )
 
         # Merge with allocations table
         if not self.allocations_df.empty:
-            merged = pd.merge(
-                self.allocations_df,
-                mp_works_agg,
-                on="MP_NAME",
-                how="left",
-                suffixes=("", "_works")
-            )
+            merged = pd.merge(self.allocations_df, mp_works_agg, on="MP_NAME", how="left", suffixes=("", "_works"))
         else:
             merged = mp_works_agg
 
@@ -240,46 +283,57 @@ class DataService:
 
             util_pct = round((disb / max(alloc, 1.0)) * 100, 1)
 
-            mps.append({
-                "mp_name": mp_name,
-                "house": str(row.get("HOUSE", row.get("house", "LOK_SABHA"))).replace("_", " ").title(),
-                "state_name": str(row.get("STATE_NAME", "National")),
-                "constituency": str(row.get("CONSTITUENCY", "State-wide")),
-                "allocated_amount_cr": round(alloc / 1e7, 2),
-                "sanctioned_amount_cr": round(sanc / 1e7, 2),
-                "disbursed_amount_cr": round(disb / 1e7, 2),
-                "utilization_pct": min(util_pct, 150.0),
-                "total_works": works_cnt,
-                "completed_works": comp_cnt,
-                "critical_flags": crit_cnt,
-                "high_flags": high_cnt,
-                "risk_tier": "CRITICAL" if crit_cnt > 2 else ("HIGH" if (crit_cnt > 0 or high_cnt > 3) else "NORMAL")
-            })
+            mps.append(
+                {
+                    "mp_name": mp_name,
+                    "house": str(row.get("HOUSE", row.get("house", "LOK_SABHA"))).replace("_", " ").title(),
+                    "state_name": str(row.get("STATE_NAME", "National")),
+                    "constituency": str(row.get("CONSTITUENCY", "State-wide")),
+                    "allocated_amount_cr": round(alloc / 1e7, 2),
+                    "sanctioned_amount_cr": round(sanc / 1e7, 2),
+                    "disbursed_amount_cr": round(disb / 1e7, 2),
+                    "utilization_pct": min(util_pct, 150.0),
+                    "total_works": works_cnt,
+                    "completed_works": comp_cnt,
+                    "critical_flags": crit_cnt,
+                    "high_flags": high_cnt,
+                    "risk_tier": "CRITICAL"
+                    if crit_cnt > 2
+                    else ("HIGH" if (crit_cnt > 0 or high_cnt > 3) else "NORMAL"),
+                }
+            )
 
         self.mp_directory = sorted(mps, key=lambda x: (x["total_works"], x["disbursed_amount_cr"]), reverse=True)
 
     def _precompute_vendor_directory(self):
         """Precomputes contractor concentration, HHI metrics, and recurrence risk."""
         valid_vendors = self.df_works[
-            self.df_works["primary_vendor"].notna() &
-            (self.df_works["total_disbursed"] > 0)
+            self.df_works["primary_vendor"].notna() & (self.df_works["total_disbursed"] > 0)
         ].copy()
         if valid_vendors.empty:
             self.vendor_directory = []
             return
 
-        valid_vendors["_days_over_365"] = pd.to_numeric(valid_vendors.get("days_since_sanction", 0), errors="coerce").fillna(0) > 365
+        valid_vendors["_days_over_365"] = (
+            pd.to_numeric(valid_vendors.get("days_since_sanction", 0), errors="coerce").fillna(0) > 365
+        )
 
-        v_agg = valid_vendors.groupby("primary_vendor").agg(
-            total_disbursed=("total_disbursed", "sum"),
-            total_works=("WORK_RECOMMENDATION_DTL_ID", "count"),
-            district_count=("IDA_NAME", "nunique"),
-            state_count=("STATE_NAME", "nunique"),
-            critical_works=("_is_critical", "sum"),
-            delayed_works=("_days_over_365", "sum"),
-            primary_state=("STATE_NAME", "first"),
-            primary_category=("WORK_CATEGORY", "first") if "WORK_CATEGORY" in valid_vendors.columns else ("STATE_NAME", "first"),
-        ).reset_index()
+        v_agg = (
+            valid_vendors.groupby("primary_vendor")
+            .agg(
+                total_disbursed=("total_disbursed", "sum"),
+                total_works=("WORK_RECOMMENDATION_DTL_ID", "count"),
+                district_count=("IDA_NAME", "nunique"),
+                state_count=("STATE_NAME", "nunique"),
+                critical_works=("_is_critical", "sum"),
+                delayed_works=("_days_over_365", "sum"),
+                primary_state=("STATE_NAME", "first"),
+                primary_category=("WORK_CATEGORY", "first")
+                if "WORK_CATEGORY" in valid_vendors.columns
+                else ("STATE_NAME", "first"),
+            )
+            .reset_index()
+        )
 
         vendors = []
         for _, row in v_agg.iterrows():
@@ -292,29 +346,36 @@ class DataService:
             delayed_works = int(row["delayed_works"])
             is_dominant = total_works >= 5 and total_disb >= 10000000.0
 
-            vendors.append({
-                "vendor_name": v_name,
-                "total_disbursed_cr": round(total_disb / 1e7, 2),
-                "total_works": total_works,
-                "district_count": int(row["district_count"]),
-                "state_count": int(row["state_count"]),
-                "critical_works": crit_works,
-                "delayed_works": delayed_works,
-                "primary_state": str(row["primary_state"]),
-                "primary_category": str(row["primary_category"]) if pd.notna(row["primary_category"]) else "Infrastructure",
-                "hhi_risk": "CONCENTRATED" if is_dominant else "COMPETITIVE",
-                "has_recurrence_flag": crit_works >= 2 or delayed_works >= 4,
-            })
+            vendors.append(
+                {
+                    "vendor_name": v_name,
+                    "total_disbursed_cr": round(total_disb / 1e7, 2),
+                    "total_works": total_works,
+                    "district_count": int(row["district_count"]),
+                    "state_count": int(row["state_count"]),
+                    "critical_works": crit_works,
+                    "delayed_works": delayed_works,
+                    "primary_state": str(row["primary_state"]),
+                    "primary_category": str(row["primary_category"])
+                    if pd.notna(row["primary_category"])
+                    else "Infrastructure",
+                    "hhi_risk": "CONCENTRATED" if is_dominant else "COMPETITIVE",
+                    "has_recurrence_flag": crit_works >= 2 or delayed_works >= 4,
+                }
+            )
         self.vendor_directory = sorted(vendors, key=lambda x: x["total_disbursed_cr"], reverse=True)
 
     def _precompute_performance_caches(self):
         """Precomputes vector search columns, inverted lookup dictionaries, and static macro trends."""
         # 1. Vectorized Search Columns
         self.df_works["_search_blob"] = (
-            self.df_works["WORK_DESCRIPTION"].fillna("").astype(str).str.lower() + " " +
-            self.df_works["WORK_RECOMMENDATION_DTL_ID"].astype(str) + " " +
-            self.df_works["MP_NAME"].fillna("").astype(str).str.lower() + " " +
-            self.df_works["IDA_NAME"].fillna("").astype(str).str.lower()
+            self.df_works["WORK_DESCRIPTION"].fillna("").astype(str).str.lower()
+            + " "
+            + self.df_works["WORK_RECOMMENDATION_DTL_ID"].astype(str)
+            + " "
+            + self.df_works["MP_NAME"].fillna("").astype(str).str.lower()
+            + " "
+            + self.df_works["IDA_NAME"].fillna("").astype(str).str.lower()
         )
         self.df_works["_state_upper"] = self.df_works["STATE_NAME"].fillna("").astype(str).str.upper()
         self.df_works["_ida_upper"] = self.df_works["IDA_NAME"].fillna("").astype(str).str.upper()
@@ -332,16 +393,23 @@ class DataService:
 
         # 4. Inverted District & State Entity Maps (O(1) lookups)
         self._district_mps_map = {
-            k: set(v) for k, v in self.df_works.groupby(self.df_works["_ida_upper"])["MP_NAME"].unique().to_dict().items()
+            k: set(v)
+            for k, v in self.df_works.groupby(self.df_works["_ida_upper"])["MP_NAME"].unique().to_dict().items()
         }
         self._district_vendors_map = {
-            k: set(v) for k, v in self.df_works.groupby(self.df_works["_ida_upper"])["primary_vendor"].unique().to_dict().items()
+            k: set(v)
+            for k, v in self.df_works.groupby(self.df_works["_ida_upper"])["primary_vendor"].unique().to_dict().items()
         }
         self._state_mps_map = {
-            k: set(v) for k, v in self.df_works.groupby(self.df_works["_state_upper"])["MP_NAME"].unique().to_dict().items()
+            k: set(v)
+            for k, v in self.df_works.groupby(self.df_works["_state_upper"])["MP_NAME"].unique().to_dict().items()
         }
         self._state_vendors_map = {
-            k: set(v) for k, v in self.df_works.groupby(self.df_works["_state_upper"])["primary_vendor"].unique().to_dict().items()
+            k: set(v)
+            for k, v in self.df_works.groupby(self.df_works["_state_upper"])["primary_vendor"]
+            .unique()
+            .to_dict()
+            .items()
         }
 
         # 5. Longitudinal Macro Trends Cache
@@ -354,18 +422,20 @@ class DataService:
                 disb = float(r.get("total_disbursed", 0.0))
                 works_cnt = int(r.get("total_sanctioned_works", 0))
                 comp_pct = float(r.get("completion_rate_pct", 0.0))
-                records.append({
-                    "tenure_or_year": year_str,
-                    "sanction_year": int(year_str) if year_str.isdigit() else 2024,
-                    "sanctioned_cr": round(sanc / 1e7, 2),
-                    "disbursed_cr": round(disb / 1e7, 2),
-                    "total_sanctioned_amount": sanc,
-                    "total_disbursed": disb,
-                    "works_count": works_cnt,
-                    "completion_rate": comp_pct,
-                    "completion_rate_pct": comp_pct,
-                    "avg_sanction_delay": float(r.get("avg_sanction_delay", 0.0)),
-                })
+                records.append(
+                    {
+                        "tenure_or_year": year_str,
+                        "sanction_year": int(year_str) if year_str.isdigit() else 2024,
+                        "sanctioned_cr": round(sanc / 1e7, 2),
+                        "disbursed_cr": round(disb / 1e7, 2),
+                        "total_sanctioned_amount": sanc,
+                        "total_disbursed": disb,
+                        "works_count": works_cnt,
+                        "completion_rate": comp_pct,
+                        "completion_rate_pct": comp_pct,
+                        "avg_sanction_delay": float(r.get("avg_sanction_delay", 0.0)),
+                    }
+                )
         self.macro_trends = records
 
     def _compute_overview_dict(self, df: pd.DataFrame) -> Dict[str, Any]:
@@ -414,22 +484,28 @@ class DataService:
             crit_cnt = int((d_sub["priority"] == "CRITICAL").sum())
             high_cnt = int((d_sub["priority"] == "HIGH").sum())
 
-            top_ia = str(d_sub["ia_name"].mode().iloc[0]) if ("ia_name" in d_sub.columns and not d_sub["ia_name"].dropna().empty) else "District Authority"
+            top_ia = (
+                str(d_sub["ia_name"].mode().iloc[0])
+                if ("ia_name" in d_sub.columns and not d_sub["ia_name"].dropna().empty)
+                else "District Authority"
+            )
 
-            districts.append({
-                "district_name": d_name,
-                "state_name": state_name,
-                "total_works": total_works,
-                "sanctioned_amount_cr": round(sanc_amt / 1e7, 2),
-                "disbursed_amount_cr": round(disb_amt / 1e7, 2),
-                "completed_works": comp_cnt,
-                "completion_pct": round((comp_cnt / max(total_works, 1)) * 100, 1),
-                "utilization_pct": round((disb_amt / max(sanc_amt, 1.0)) * 100, 1),
-                "critical_flags": crit_cnt,
-                "high_flags": high_cnt,
-                "primary_ia": top_ia,
-                "risk_tier": "CRITICAL" if crit_cnt > 0 else ("HIGH" if high_cnt > 2 else "NORMAL"),
-            })
+            districts.append(
+                {
+                    "district_name": d_name,
+                    "state_name": state_name,
+                    "total_works": total_works,
+                    "sanctioned_amount_cr": round(sanc_amt / 1e7, 2),
+                    "disbursed_amount_cr": round(disb_amt / 1e7, 2),
+                    "completed_works": comp_cnt,
+                    "completion_pct": round((comp_cnt / max(total_works, 1)) * 100, 1),
+                    "utilization_pct": round((disb_amt / max(sanc_amt, 1.0)) * 100, 1),
+                    "critical_flags": crit_cnt,
+                    "high_flags": high_cnt,
+                    "primary_ia": top_ia,
+                    "risk_tier": "CRITICAL" if crit_cnt > 0 else ("HIGH" if high_cnt > 2 else "NORMAL"),
+                }
+            )
 
         return sorted(districts, key=lambda x: x["total_works"], reverse=True)
 
@@ -531,16 +607,16 @@ class DataService:
                 df = df[df["_search_blob"].str.contains(q_lower, regex=False, na=False)]
             else:
                 mask = (
-                    df["WORK_DESCRIPTION"].astype(str).str.lower().str.contains(q_lower, na=False) |
-                    df["WORK_RECOMMENDATION_DTL_ID"].astype(str).str.contains(q_lower, na=False) |
-                    df["MP_NAME"].astype(str).str.lower().str.contains(q_lower, na=False) |
-                    df["IDA_NAME"].astype(str).str.lower().str.contains(q_lower, na=False)
+                    df["WORK_DESCRIPTION"].astype(str).str.lower().str.contains(q_lower, na=False)
+                    | df["WORK_RECOMMENDATION_DTL_ID"].astype(str).str.contains(q_lower, na=False)
+                    | df["MP_NAME"].astype(str).str.lower().str.contains(q_lower, na=False)
+                    | df["IDA_NAME"].astype(str).str.lower().str.contains(q_lower, na=False)
                 )
                 df = df[mask]
 
         # Dynamic Sorting
         if sort_by:
-            ascending = (str(sort_order).lower() == "asc")
+            ascending = str(sort_order).lower() == "asc"
             s_by = str(sort_by).lower()
             if s_by == "priority":
                 prio_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
@@ -568,27 +644,29 @@ class DataService:
         results = []
         for _, row in page_slice.iterrows():
             rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
-            results.append({
-                "work_rec_id": rec_id,
-                "work_id": str(row.get("WORK_ID") or rec_id),
-                "description": str(row.get("WORK_DESCRIPTION", "MPLADS Community Work")),
-                "category": str(row.get("WORK_CATEGORY", "General")),
-                "state_name": str(row.get("STATE_NAME", "N/A")),
-                "ida_name": str(row.get("IDA_NAME", "N/A")),
-                "mp_name": str(row.get("MP_NAME", "N/A")),
-                "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
-                "total_disbursed": float(row.get("total_disbursed", 0.0)),
-                "priority": str(row.get("priority", "LOW")),
-                "lifecycle_stage": str(row.get("lifecycle_stage", "SANCTIONED")),
-                "dqi_score": float(row.get("dqi_score", 0.85)),
-                "primary_vendor": redact_vendor_name(
-                    row.get("primary_vendor"),
-                    scope.get("can_view_unredacted_vendors", True) if scope else True,
-                ),
-                "days_rec_to_sanction": int(row.get("days_rec_to_sanction", 0)),
-                "days_since_sanction": int(row.get("days_since_sanction", 0)),
-                "risk_score": self.compute_explainable_risk(row)["score"],
-            })
+            results.append(
+                {
+                    "work_rec_id": rec_id,
+                    "work_id": str(row.get("WORK_ID") or rec_id),
+                    "description": str(row.get("WORK_DESCRIPTION", "MPLADS Community Work")),
+                    "category": str(row.get("WORK_CATEGORY", "General")),
+                    "state_name": str(row.get("STATE_NAME", "N/A")),
+                    "ida_name": str(row.get("IDA_NAME", "N/A")),
+                    "mp_name": str(row.get("MP_NAME", "N/A")),
+                    "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
+                    "total_disbursed": float(row.get("total_disbursed", 0.0)),
+                    "priority": str(row.get("priority", "LOW")),
+                    "lifecycle_stage": str(row.get("lifecycle_stage", "SANCTIONED")),
+                    "dqi_score": float(row.get("dqi_score", 0.85)),
+                    "primary_vendor": redact_vendor_name(
+                        row.get("primary_vendor"),
+                        scope.get("can_view_unredacted_vendors", True) if scope else True,
+                    ),
+                    "days_rec_to_sanction": int(row.get("days_rec_to_sanction", 0)),
+                    "days_since_sanction": int(row.get("days_since_sanction", 0)),
+                    "risk_score": self.compute_explainable_risk(row)["score"],
+                }
+            )
 
         return {
             "total": total_matching,
@@ -646,85 +724,103 @@ class DataService:
                 overrun_pct = round(((disb / sanc) - 1) * 100, 1)
                 pts = min(35, 20 + int(overrun_pct / 5))
                 score += pts
-                signals.append({
-                    "weight": pts,
-                    "name": "Cost Overrun Above Sanctioned Estimate",
-                    "severity": "CRITICAL" if pts >= 28 else "HIGH",
-                    "explanation": f"Disbursement of ₹{disb:,.0f} exceeded sanctioned budget of ₹{sanc:,.0f} by {overrun_pct}%.",
-                    "action": "Compare BOQ / sanctioned estimate and verify authorization for cost escalation."
-                })
+                signals.append(
+                    {
+                        "weight": pts,
+                        "name": "Cost Overrun Above Sanctioned Estimate",
+                        "severity": "CRITICAL" if pts >= 28 else "HIGH",
+                        "explanation": f"Disbursement of ₹{disb:,.0f} exceeded sanctioned budget of ₹{sanc:,.0f} by {overrun_pct}%.",
+                        "action": "Compare BOQ / sanctioned estimate and verify authorization for cost escalation.",
+                    }
+                )
             elif sanc > 2500000.0:  # > 25 Lakhs
                 pts = 15
                 score += pts
-                signals.append({
-                    "weight": pts,
-                    "name": "High Capital Outlay Project",
-                    "severity": "MEDIUM",
-                    "explanation": f"High value outlay of ₹{sanc/1e5:.1f} Lakhs requires multi-tier technical sanction.",
-                    "action": "Audit detailed engineering estimates and administrative sanction files."
-                })
+                signals.append(
+                    {
+                        "weight": pts,
+                        "name": "High Capital Outlay Project",
+                        "severity": "MEDIUM",
+                        "explanation": f"High value outlay of ₹{sanc / 1e5:.1f} Lakhs requires multi-tier technical sanction.",
+                        "action": "Audit detailed engineering estimates and administrative sanction files.",
+                    }
+                )
 
         # 2. Physical vs Financial Progress Mismatch (up to 30 pts)
         if not has_end and days_sanc > 365:
             if disb > 0.8 * sanc:
                 pts = 28
                 score += pts
-                signals.append({
-                    "weight": pts,
-                    "name": "Physical Progress Inconsistent With Expenditure",
-                    "severity": "CRITICAL",
-                    "explanation": f"Over 80% funds disbursed (₹{disb:,.0f}) but project remains uncompleted after {days_sanc} days.",
-                    "action": "Verify physical completion on-site and reconcile Measurement Book (MB) entries."
-                })
+                signals.append(
+                    {
+                        "weight": pts,
+                        "name": "Physical Progress Inconsistent With Expenditure",
+                        "severity": "CRITICAL",
+                        "explanation": f"Over 80% funds disbursed (₹{disb:,.0f}) but project remains uncompleted after {days_sanc} days.",
+                        "action": "Verify physical completion on-site and reconcile Measurement Book (MB) entries.",
+                    }
+                )
             elif days_sanc > 540:  # 18 months
                 pts = 20
                 score += pts
-                signals.append({
-                    "weight": pts,
-                    "name": "Severe Execution Delay",
-                    "severity": "HIGH",
-                    "explanation": f"Project active for {days_sanc} days without formal completion certificate.",
-                    "action": "Inspect site progress and issue formal notice to Implementing Agency."
-                })
+                signals.append(
+                    {
+                        "weight": pts,
+                        "name": "Severe Execution Delay",
+                        "severity": "HIGH",
+                        "explanation": f"Project active for {days_sanc} days without formal completion certificate.",
+                        "action": "Inspect site progress and issue formal notice to Implementing Agency.",
+                    }
+                )
 
         # 3. Statutory Sanction Delay (up to 20 pts)
         if days_rec > 45:
             delay = days_rec - 45
             pts = min(20, 10 + int(delay / 15))
             score += pts
-            signals.append({
-                "weight": pts,
-                "name": "Statutory 45-Day Sanction SLA Breached",
-                "severity": "HIGH" if pts >= 16 else "MEDIUM",
-                "explanation": f"Turnaround from MP recommendation to sanction took {days_rec} days (exceeded 45-day statutory SLA by {delay} days).",
-                "action": "Review bottleneck documentation between MP recommendation and district administrative approval."
-            })
+            signals.append(
+                {
+                    "weight": pts,
+                    "name": "Statutory 45-Day Sanction SLA Breached",
+                    "severity": "HIGH" if pts >= 16 else "MEDIUM",
+                    "explanation": f"Turnaround from MP recommendation to sanction took {days_rec} days (exceeded 45-day statutory SLA by {delay} days).",
+                    "action": "Review bottleneck documentation between MP recommendation and district administrative approval.",
+                }
+            )
 
         # 4. Contractor Concentration Signal (up to 15 pts)
         v_name = str(row.get("primary_vendor", "")).strip()
         if v_name and v_name not in ("N/A", "nan", "None", ""):
             pts = 12
             score += pts
-            signals.append({
-                "weight": pts,
-                "name": "Single Contractor Allocation in Jurisdiction",
-                "severity": "MEDIUM",
-                "explanation": f"Work awarded to contractor '{v_name}'; concentration analysis shows recurring awards in this district.",
-                "action": "Review tender participation records and competitive bidding documentation."
-            })
+            signals.append(
+                {
+                    "weight": pts,
+                    "name": "Single Contractor Allocation in Jurisdiction",
+                    "severity": "MEDIUM",
+                    "explanation": f"Work awarded to contractor '{v_name}'; concentration analysis shows recurring awards in this district.",
+                    "action": "Review tender participation records and competitive bidding documentation.",
+                }
+            )
 
         if score == 0:
             score = 8
-            signals.append({
-                "weight": 8,
-                "name": "Baseline Statistical Monitoring",
-                "severity": "LOW",
-                "explanation": "No statutory guideline breaches or cost overruns detected.",
-                "action": "Standard social audit and routine post-completion inspection."
-            })
+            signals.append(
+                {
+                    "weight": 8,
+                    "name": "Baseline Statistical Monitoring",
+                    "severity": "LOW",
+                    "explanation": "No statutory guideline breaches or cost overruns detected.",
+                    "action": "Standard social audit and routine post-completion inspection.",
+                }
+            )
 
         final_score = min(score, 100)
-        category = "CRITICAL" if final_score >= 75 else ("HIGH" if final_score >= 50 else ("MEDIUM" if final_score >= 25 else "LOW"))
+        category = (
+            "CRITICAL"
+            if final_score >= 75
+            else ("HIGH" if final_score >= 50 else ("MEDIUM" if final_score >= 25 else "LOW"))
+        )
 
         return {
             "score": final_score,
@@ -760,9 +856,13 @@ class DataService:
         # Q1: What happened?
         observations = []
         if days_rec > 45:
-            observations.append(f"Sanction delay of {days_rec} days exceeded statutory 45-day SLA by {days_rec - 45} days.")
+            observations.append(
+                f"Sanction delay of {days_rec} days exceeded statutory 45-day SLA by {days_rec - 45} days."
+            )
         if disb > sanc * 1.05:
-            observations.append(f"Disbursed funds (₹{disb:,.0f}) exceeded sanctioned budget (₹{sanc:,.0f}) by {(disb/sanc - 1):.1%}.")
+            observations.append(
+                f"Disbursed funds (₹{disb:,.0f}) exceeded sanctioned budget (₹{sanc:,.0f}) by {(disb / sanc - 1):.1%}."
+            )
         if days_sanc > 365 and not has_end:
             observations.append(f"Project has been active for {days_sanc} days without formal completion sign-off.")
         if not observations:
@@ -843,17 +943,19 @@ class DataService:
             filtered = filtered[filtered["STATE_NAME"].astype(str).str.upper() == str(scope["STATE_NAME"]).upper()]
         if "IDA_NAME" in scope and "IDA_NAME" in df.columns:
             ida_query = str(scope["IDA_NAME"]).strip().upper()
-            filtered = filtered[filtered["IDA_NAME"].astype(str).str.upper().apply(
-                lambda val: ida_query in val or val in ida_query
-            )]
+            filtered = filtered[
+                filtered["IDA_NAME"].astype(str).str.upper().apply(lambda val: ida_query in val or val in ida_query)
+            ]
         if "MP_NAME" in scope and "MP_NAME" in df.columns:
             mp_tokens = [t.lower() for t in str(scope["MP_NAME"]).split() if len(t) > 2]
             if mp_tokens:
-                filtered = filtered[filtered["MP_NAME"].astype(str).apply(
-                    lambda val: all(t in val.lower() for t in mp_tokens)
-                )]
+                filtered = filtered[
+                    filtered["MP_NAME"].astype(str).apply(lambda val: all(t in val.lower() for t in mp_tokens))
+                ]
             else:
-                filtered = filtered[filtered["MP_NAME"].astype(str).str.contains(str(scope["MP_NAME"]), case=False, na=False)]
+                filtered = filtered[
+                    filtered["MP_NAME"].astype(str).str.contains(str(scope["MP_NAME"]), case=False, na=False)
+                ]
         if scope.get("is_citizen") and "ACTUAL_END_DATE" in filtered.columns:
             completed = filtered[filtered["ACTUAL_END_DATE"].notna()]
             if not completed.empty:

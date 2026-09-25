@@ -2,8 +2,9 @@
 Auth and Persona Switching Routes with Dynamic Multi-Tenant Context Support.
 """
 
-from typing import Dict, List, Optional
 import uuid
+from typing import Dict, Optional
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -95,7 +96,13 @@ def switch_persona(payload: SwitchPersonaRequest):
                 organization=f"Office of the District Magistrate & IDA {district.title()}",
                 state=state,
                 district=district,
-                permissions=["read_district", "dispatch_dqm_inspection", "signoff_milestone", "manage_district_review_queue", "simulate_thresholds"],
+                permissions=[
+                    "read_district",
+                    "dispatch_dqm_inspection",
+                    "signoff_milestone",
+                    "manage_district_review_queue",
+                    "simulate_thresholds",
+                ],
                 strict_isolation=strict,
             )
 
@@ -109,7 +116,13 @@ def switch_persona(payload: SwitchPersonaRequest):
                 organization=f"Planning Department, Govt. of {state.title()}",
                 state=state,
                 district=None,
-                permissions=["read_state", "export_state_report", "flag_district", "review_state_works", "simulate_thresholds"],
+                permissions=[
+                    "read_state",
+                    "export_state_report",
+                    "flag_district",
+                    "review_state_works",
+                    "simulate_thresholds",
+                ],
                 strict_isolation=strict,
             )
 
@@ -122,7 +135,14 @@ def switch_persona(payload: SwitchPersonaRequest):
                 organization="MoSPI — Autonomous Analytical Oversight Wing",
                 state=None,
                 district=None,
-                permissions=["read_all", "export_dossier", "trigger_audit", "admin_config", "view_unredacted_vendors", "simulate_thresholds"],
+                permissions=[
+                    "read_all",
+                    "export_dossier",
+                    "trigger_audit",
+                    "admin_config",
+                    "view_unredacted_vendors",
+                    "simulate_thresholds",
+                ],
                 strict_isolation=False,
             )
 
@@ -150,11 +170,13 @@ def switch_persona(payload: SwitchPersonaRequest):
             user.strict_isolation = payload.strict_isolation
 
     # Issue signed JWT with embedded user profile
-    token = create_access_token({
-        "sub": user.id,
-        "persona_id": payload.persona_id or user.role.value.lower(),
-        "role": user.role.value,
-        "user": user.model_dump(),
-    })
+    token = create_access_token(
+        {
+            "sub": user.id,
+            "persona_id": payload.persona_id or user.role.value.lower(),
+            "role": user.role.value,
+            "user": user.model_dump(),
+        }
+    )
 
     return LoginResponse(access_token=token, user=user)

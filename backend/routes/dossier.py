@@ -3,6 +3,7 @@
 """
 
 from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 
@@ -46,7 +47,7 @@ def export_dossier_html(
         f"<strong>+{s['weight']} {s['name']}</strong> ({s['severity']})<br/>"
         f"<span style='color:#94a3b8;font-size:0.9em;'>{s['explanation']}</span><br/>"
         f"<span style='color:#38bdf8;font-size:0.85em;'>→ Recommended: {s['action']}</span></div>"
-        for s in d.get('risk_signals', [])
+        for s in d.get("risk_signals", [])
     )
 
     html = f"""<!DOCTYPE html>
@@ -69,12 +70,12 @@ def export_dossier_html(
 </head>
 <body>
     <div class="card">
-        <span class="badge">{d['priority']} PRIORITY</span>
-        <span class="score-pill">RISK SCORE: {d.get('risk_score', 50)} / 100</span>
-        <h1>Governance Dossier: Work #{d['work_rec_id']}</h1>
-        <p><strong>Description:</strong> {d['description']}</p>
-        <p><strong>Location:</strong> {d['ida_name']}, {d['state_name']} | <strong>MP:</strong> {d['mp_name']}</p>
-        <p><strong>Sanctioned:</strong> ₹{d['sanction_amount']:,.0f} | <strong>Disbursed:</strong> ₹{d['total_disbursed']:,.0f}</p>
+        <span class="badge">{d["priority"]} PRIORITY</span>
+        <span class="score-pill">RISK SCORE: {d.get("risk_score", 50)} / 100</span>
+        <h1>Governance Dossier: Work #{d["work_rec_id"]}</h1>
+        <p><strong>Description:</strong> {d["description"]}</p>
+        <p><strong>Location:</strong> {d["ida_name"]}, {d["state_name"]} | <strong>MP:</strong> {d["mp_name"]}</p>
+        <p><strong>Sanctioned:</strong> ₹{d["sanction_amount"]:,.0f} | <strong>Disbursed:</strong> ₹{d["total_disbursed"]:,.0f}</p>
     </div>
 
     <div class="card">
@@ -84,16 +85,16 @@ def export_dossier_html(
 
     <div class="card">
         <h2>5 Core Governance Questions</h2>
-        <div class="qa"><div class="q">Q1: What happened?</div><div class="a">{d['five_questions']['q1_what_happened']}</div></div>
-        <div class="qa"><div class="q">Q2: Why is it unusual?</div><div class="a">{d['five_questions']['q2_why_unusual']}</div></div>
-        <div class="qa"><div class="q">Q3: Compared with what?</div><div class="a">{d['five_questions']['q3_compared_with_what']}</div></div>
-        <div class="qa"><div class="q">Q4: Limitations</div><div class="a">{d['five_questions']['q5_limitations']}</div></div>
+        <div class="qa"><div class="q">Q1: What happened?</div><div class="a">{d["five_questions"]["q1_what_happened"]}</div></div>
+        <div class="qa"><div class="q">Q2: Why is it unusual?</div><div class="a">{d["five_questions"]["q2_why_unusual"]}</div></div>
+        <div class="qa"><div class="q">Q3: Compared with what?</div><div class="a">{d["five_questions"]["q3_compared_with_what"]}</div></div>
+        <div class="qa"><div class="q">Q4: Limitations</div><div class="a">{d["five_questions"]["q5_limitations"]}</div></div>
     </div>
 
     <div class="card">
         <h2>Prescribed AC-19 Action Checklist for Reviewing Authority</h2>
         <ul>
-            {"".join(f"<li>☑ {action}</li>" for action in d['next_review_actions'])}
+            {"".join(f"<li>☑ {action}</li>" for action in d["next_review_actions"])}
         </ul>
     </div>
 </body>

@@ -3,6 +3,7 @@ Overview and Macro Trend API Endpoints.
 """
 
 from typing import Any, Dict, List
+
 from fastapi import APIRouter, Depends
 
 from backend.core.auth import get_tenant_scope
@@ -35,16 +36,18 @@ def get_macro_trends():
         disb = float(r.get("total_disbursed", 0.0))
         works_cnt = int(r.get("total_sanctioned_works", 0))
         comp_pct = float(r.get("completion_rate_pct", 0.0))
-        records.append({
-            "tenure_or_year": year_str,
-            "sanction_year": int(year_str) if year_str.isdigit() else 2024,
-            "sanctioned_cr": round(sanc / 1e7, 2),
-            "disbursed_cr": round(disb / 1e7, 2),
-            "total_sanctioned_amount": sanc,
-            "total_disbursed": disb,
-            "works_count": works_cnt,
-            "completion_rate": comp_pct,
-            "completion_rate_pct": comp_pct,
-            "avg_sanction_delay": float(r.get("avg_sanction_delay", 0.0)),
-        })
+        records.append(
+            {
+                "tenure_or_year": year_str,
+                "sanction_year": int(year_str) if year_str.isdigit() else 2024,
+                "sanctioned_cr": round(sanc / 1e7, 2),
+                "disbursed_cr": round(disb / 1e7, 2),
+                "total_sanctioned_amount": sanc,
+                "total_disbursed": disb,
+                "works_count": works_cnt,
+                "completion_rate": comp_pct,
+                "completion_rate_pct": comp_pct,
+                "avg_sanction_delay": float(r.get("avg_sanction_delay", 0.0)),
+            }
+        )
     return records

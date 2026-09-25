@@ -5,6 +5,7 @@ Role-Based Access Control (RBAC) & Multi-Tenant Scoping for MPLADS Platform.
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
 import jwt
 from fastapi import Depends, Header, HTTPException, status
 from pydantic import BaseModel
@@ -44,7 +45,14 @@ DEMO_PERSONAS: Dict[str, UserProfile] = {
         organization="MoSPI — Autonomous Analytical Oversight Wing",
         state=None,
         district=None,
-        permissions=["read_all", "export_dossier", "trigger_audit", "admin_config", "view_unredacted_vendors", "simulate_thresholds"],
+        permissions=[
+            "read_all",
+            "export_dossier",
+            "trigger_audit",
+            "admin_config",
+            "view_unredacted_vendors",
+            "simulate_thresholds",
+        ],
         strict_isolation=False,
     ),
     "state_nodal_officer": UserProfile(
@@ -66,7 +74,13 @@ DEMO_PERSONAS: Dict[str, UserProfile] = {
         organization="Office of the District Magistrate & IDA Pune",
         state="MAHARASHTRA",
         district="PUNE",
-        permissions=["read_district", "dispatch_dqm_inspection", "signoff_milestone", "manage_district_review_queue", "simulate_thresholds"],
+        permissions=[
+            "read_district",
+            "dispatch_dqm_inspection",
+            "signoff_milestone",
+            "manage_district_review_queue",
+            "simulate_thresholds",
+        ],
         strict_isolation=True,
     ),
     "mp_user": UserProfile(
@@ -143,7 +157,7 @@ def get_current_user(
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
         payload = decode_access_token(token)
-        
+
         # Support full dynamic user profiles embedded in JWT
         if "user" in payload and isinstance(payload["user"], dict):
             try:
@@ -161,6 +175,7 @@ def get_current_user(
 
 def require_permission(permission: str):
     """Dependency that enforces a specific permission on the authenticated user."""
+
     def permission_checker(user: UserProfile = Depends(get_current_user)) -> UserProfile:
         if permission not in user.permissions:
             raise HTTPException(
@@ -168,11 +183,13 @@ def require_permission(permission: str):
                 detail=f"Forbidden: Action requires permission '{permission}'. Role '{user.role}' lacks this permission.",
             )
         return user
+
     return permission_checker
 
 
 def require_any_permission(*permissions: str):
     """Dependency that enforces at least one of the listed permissions."""
+
     def permission_checker(user: UserProfile = Depends(get_current_user)) -> UserProfile:
         if not any(p in user.permissions for p in permissions):
             raise HTTPException(
@@ -180,6 +197,7 @@ def require_any_permission(*permissions: str):
                 detail=f"Forbidden: Action requires one of {list(permissions)}. Role '{user.role}' is not authorized.",
             )
         return user
+
     return permission_checker
 
 
@@ -271,5 +289,5 @@ def validate_tenant_query(
             if mp_toks and not all(t in user_mp for t in mp_toks):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access Denied: Member of Parliament is restricted to their parliamentary constituency portfolio.",
+                    detail="Access Denied: Member of Parliament is restricted to their parliamentary constituency portfolio.",
                 )

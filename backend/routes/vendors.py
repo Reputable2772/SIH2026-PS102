@@ -2,7 +2,8 @@
 Vendor & Contractor Monopoly Matrix Endpoints.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.core.auth import UserRole, get_tenant_scope, redact_vendor_name
@@ -43,10 +44,7 @@ def search_vendors(
     # Redaction for public citizens
     can_view_unredacted = scope.get("can_view_unredacted_vendors", True)
     if not can_view_unredacted or scope.get("is_citizen"):
-        vendors = [
-            {**v, "vendor_name": redact_vendor_name(v["vendor_name"], False)}
-            for v in vendors
-        ]
+        vendors = [{**v, "vendor_name": redact_vendor_name(v["vendor_name"], False)} for v in vendors]
 
     if hhi_risk:
         vendors = [v for v in vendors if v["hhi_risk"].upper() == hhi_risk.upper()]
@@ -79,8 +77,7 @@ def get_vendor_profile(
 
     # Scoped works
     sub = ds.apply_tenant_filter(
-        ds.df_works[ds.df_works["primary_vendor"].astype(str).str.lower() == vendor_name.lower()],
-        scope
+        ds.df_works[ds.df_works["primary_vendor"].astype(str).str.lower() == vendor_name.lower()], scope
     )
 
     if scope.get("strict_isolation", True) and sub.empty:
@@ -93,15 +90,17 @@ def get_vendor_profile(
     works = []
     for _, row in sub.head(10).iterrows():
         rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
-        works.append({
-            "work_rec_id": rec_id,
-            "description": str(row.get("WORK_DESCRIPTION", "Project")),
-            "state_name": str(row.get("STATE_NAME", "N/A")),
-            "ida_name": str(row.get("IDA_NAME", "N/A")),
-            "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
-            "total_disbursed": float(row.get("total_disbursed", 0.0)),
-            "priority": str(row.get("priority", "LOW")),
-        })
+        works.append(
+            {
+                "work_rec_id": rec_id,
+                "description": str(row.get("WORK_DESCRIPTION", "Project")),
+                "state_name": str(row.get("STATE_NAME", "N/A")),
+                "ida_name": str(row.get("IDA_NAME", "N/A")),
+                "sanction_amount": float(row.get("SANCTION_AMOUNT", 0.0)),
+                "total_disbursed": float(row.get("total_disbursed", 0.0)),
+                "priority": str(row.get("priority", "LOW")),
+            }
+        )
 
     return {
         "profile": v_info,

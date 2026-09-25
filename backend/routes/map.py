@@ -2,11 +2,10 @@
 Map Spatial Indicators & GeoJSON Endpoints.
 """
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException, Query
 
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from backend.core.auth import get_tenant_scope, validate_tenant_query

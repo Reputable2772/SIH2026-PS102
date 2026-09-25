@@ -3,7 +3,8 @@ District & Constituency Intelligence Endpoints.
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.core.auth import UserRole, get_tenant_scope, validate_tenant_query
 from backend.services.data_service import DataService
@@ -54,8 +55,8 @@ def get_district_deep_dive(
     ds = DataService.get_instance()
     d_q = district.strip().upper()
     sub = ds.df_works[
-        (ds.df_works["STATE_NAME"].astype(str).str.upper() == state.upper()) &
-        (ds.df_works["IDA_NAME"].astype(str).str.upper().apply(lambda v: d_q in v or v in d_q))
+        (ds.df_works["STATE_NAME"].astype(str).str.upper() == state.upper())
+        & (ds.df_works["IDA_NAME"].astype(str).str.upper().apply(lambda v: d_q in v or v in d_q))
     ]
     if sub.empty:
         raise HTTPException(status_code=404, detail=f"District '{district}' in '{state}' not found.")

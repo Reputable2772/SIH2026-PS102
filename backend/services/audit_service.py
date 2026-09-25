@@ -6,7 +6,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from backend.core.config import BASE_DIR
 
@@ -122,7 +122,13 @@ class AuditService:
                 INSERT INTO audit_activity_log (work_rec_id, action_type, details, actor_name, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (rec_id, "REVIEW_UPDATED", f"Status set to {status} with {len(checked_actions)} actions completed", auditor_name, now_iso),
+                (
+                    rec_id,
+                    "REVIEW_UPDATED",
+                    f"Status set to {status} with {len(checked_actions)} actions completed",
+                    auditor_name,
+                    now_iso,
+                ),
             )
             conn.commit()
 
