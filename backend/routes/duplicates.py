@@ -96,6 +96,23 @@ def resolve_duplicate_pair(
         )
 
     svc = DuplicateService.get_instance()
+    pair = next((p for p in getattr(svc, "_candidate_pairs", []) if p.get("pair_id") == pair_id), None)
+    if not pair:
+        raise HTTPException(status_code=404, detail=f"Duplicate candidate pair '{pair_id}' not found.")
+
+    if scope and scope.get("strict_isolation", True):
+        role = scope.get("role")
+        p_state = str(pair.get("state_name", "")).upper()
+        p_dist = str(pair.get("district_name", "")).upper()
+        if role == "DISTRICT_AUTHORITY":
+            u_dist = str(scope.get("IDA_NAME", "")).strip().upper()
+            if u_dist not in p_dist and p_dist not in u_dist:
+                raise HTTPException(status_code=403, detail="Forbidden: Cannot adjudicate duplicates outside your district.")
+        elif role == "STATE_NODAL_OFFICER":
+            u_state = str(scope.get("STATE_NAME", "")).strip().upper()
+            if p_state != u_state:
+                raise HTTPException(status_code=403, detail="Forbidden: Cannot adjudicate duplicates outside your state.")
+
     res = svc.resolve_duplicate(
         pair_id=pair_id,
         decision=payload.decision,

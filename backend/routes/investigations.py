@@ -63,12 +63,16 @@ def get_case_detail(
         role = scope.get("role")
         if role == "DISTRICT_AUTHORITY":
             u_dist = str(scope.get("IDA_NAME", "")).strip().upper()
-            if u_dist not in case["district_name"].upper():
+            if u_dist not in case["district_name"].upper() and case["district_name"].upper() not in u_dist:
                 raise HTTPException(status_code=403, detail="Forbidden: Case is outside your territorial jurisdiction.")
         elif role == "STATE_NODAL_OFFICER":
             u_state = str(scope.get("STATE_NAME", "")).strip().upper()
             if case["state_name"].upper() != u_state:
                 raise HTTPException(status_code=403, detail="Forbidden: Case is outside your state jurisdiction.")
+        elif role == "MP_USER":
+            u_state = str(scope.get("STATE_NAME", "")).strip().upper()
+            if case["state_name"].upper() != u_state:
+                raise HTTPException(status_code=403, detail="Forbidden: Case is outside your parliamentary state portfolio.")
 
     return case
 
@@ -91,14 +95,29 @@ def update_case_stage(
         )
 
     try:
+        case = svc.get_case_detail(case_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
+
+    # Enforce multi-tenant boundary on stage mutation
+    if scope and scope.get("strict_isolation", True):
+        role = scope.get("role")
+        if role == "DISTRICT_AUTHORITY":
+            u_dist = str(scope.get("IDA_NAME", "")).strip().upper()
+            if u_dist not in case["district_name"].upper() and case["district_name"].upper() not in u_dist:
+                raise HTTPException(status_code=403, detail="Forbidden: Cannot transition cases outside your district jurisdiction.")
+        elif role == "STATE_NODAL_OFFICER":
+            u_state = str(scope.get("STATE_NAME", "")).strip().upper()
+            if case["state_name"].upper() != u_state:
+                raise HTTPException(status_code=403, detail="Forbidden: Cannot transition cases outside your state jurisdiction.")
+
+    try:
         return svc.update_stage(
             case_id=case_id,
             to_stage=payload.to_stage,
             changed_by=user.name or "Oversight Officer",
             notes=payload.notes,
         )
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
 
@@ -108,17 +127,38 @@ def add_case_note(
     case_id: str,
     payload: AddEvidenceRequest,
     user: UserProfile = Depends(get_current_user),
+    scope: Dict[str, Any] = Depends(get_tenant_scope),
 ):
     """Appends an evidence note or field finding."""
+    required_perms = {"dispatch_dqm_inspection", "manage_district_review_queue", "trigger_audit", "admin_config"}
+    if not any(p in user.permissions for p in required_perms):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Forbidden: Role '{user.role}' lacks authority to record field notes in active investigations.",
+        )
+
     svc = InvestigationService.get_instance()
     try:
-        return svc.add_evidence_note(
-            case_id=case_id,
-            note_text=payload.note,
-            author=user.name or "Investigator",
-        )
+        case = svc.get_case_detail(case_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
+
+    if scope and scope.get("strict_isolation", True):
+        role = scope.get("role")
+        if role == "DISTRICT_AUTHORITY":
+            u_dist = str(scope.get("IDA_NAME", "")).strip().upper()
+            if u_dist not in case["district_name"].upper() and case["district_name"].upper() not in u_dist:
+                raise HTTPException(status_code=403, detail="Forbidden: Cannot record notes on cases outside your district.")
+        elif role == "STATE_NODAL_OFFICER":
+            u_state = str(scope.get("STATE_NAME", "")).strip().upper()
+            if case["state_name"].upper() != u_state:
+                raise HTTPException(status_code=403, detail="Forbidden: Cannot record notes on cases outside your state.")
+
+    return svc.add_evidence_note(
+        case_id=case_id,
+        note_text=payload.note,
+        author=user.name or "Investigator",
+    )
 
 
 @router.post("/{case_id}/calibrate", response_model=Dict[str, Any])
@@ -128,6 +168,13 @@ def calibrate_model_feedback(
     user: UserProfile = Depends(get_current_user),
 ):
     """Submits human-in-the-loop calibration feedback to refine AI detector accuracy."""
+    required_perms = {"admin_config", "trigger_audit", "manage_district_review_queue"}
+    if not any(p in user.permissions for p in required_perms):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Forbidden: Role '{user.role}' lacks authority to calibrate model anomaly feedback.",
+        )
+
     svc = InvestigationService.get_instance()
     try:
         return svc.submit_calibration_feedback(

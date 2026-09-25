@@ -33,6 +33,9 @@ def get_all_districts(
         elif role == UserRole.STATE_NODAL_OFFICER:
             u_state = scope.get("STATE_NAME") or state or "Maharashtra"
             return ds.get_districts_for_state(u_state)
+        elif role == UserRole.MP_USER:
+            u_state = scope.get("STATE_NAME") or state or "Maharashtra"
+            return ds.get_districts_for_state(u_state)
 
     if state:
         return ds.get_districts_for_state(state)

@@ -147,6 +147,9 @@ def get_current_user(
     authorization: Optional[str] = Header(None),
     x_persona_id: Optional[str] = Header(None),
     x_user_role: Optional[str] = Header(None),
+    x_ida_name: Optional[str] = Header(None),
+    x_district: Optional[str] = Header(None),
+    x_state: Optional[str] = Header(None),
 ) -> UserProfile:
     """
     Resolves the current user either from direct X-Persona-Id header, X-User-Role header,
@@ -155,15 +158,39 @@ def get_current_user(
     if x_persona_id:
         p_key = x_persona_id.lower().replace("-", "_")
         if p_key in DEMO_PERSONAS:
-            return DEMO_PERSONAS[p_key]
+            matched = DEMO_PERSONAS[p_key]
+            dist = x_district or x_ida_name
+            st = x_state
+            if dist or st:
+                new_profile = matched.model_copy()
+                if dist:
+                    new_profile.district = dist.strip().upper()
+                if st:
+                    new_profile.state = st.strip().upper()
+                return new_profile
+            return matched
 
     if x_user_role:
         r_key = x_user_role.lower().replace("-", "_")
+        matched = None
         if r_key in DEMO_PERSONAS:
-            return DEMO_PERSONAS[r_key]
-        for p in DEMO_PERSONAS.values():
-            if p.role.value.lower() == r_key:
-                return p
+            matched = DEMO_PERSONAS[r_key]
+        else:
+            for p in DEMO_PERSONAS.values():
+                if p.role.value.lower() == r_key:
+                    matched = p
+                    break
+        if matched:
+            dist = x_district or x_ida_name
+            st = x_state
+            if dist or st:
+                new_profile = matched.model_copy()
+                if dist:
+                    new_profile.district = dist.strip().upper()
+                if st:
+                    new_profile.state = st.strip().upper()
+                return new_profile
+            return matched
 
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]

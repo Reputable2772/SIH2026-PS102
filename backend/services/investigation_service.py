@@ -113,7 +113,8 @@ class InvestigationService:
 
                 # Assign realistic stages across the pipeline
                 stage = STAGES[idx % len(STAGES)]
-                score = float(row.get("turnaround_days", 45)) + 40.0
+                risk_info = self.ds.compute_explainable_risk(row)
+                score = float(risk_info.get("score", 75.0))
                 score = min(98.0, max(65.0, score))
 
                 agencies = [
@@ -234,6 +235,11 @@ class InvestigationService:
                 u_state = str(scope.get("STATE_NAME", "")).strip().upper()
                 query += " AND UPPER(state_name) = ?"
                 params.append(u_state)
+            elif role == "MP_USER":
+                u_mp = str(scope.get("MP_NAME", "")).strip().lower()
+                u_state = str(scope.get("STATE_NAME", "")).strip().upper()
+                query += " AND (LOWER(title) LIKE ? OR UPPER(state_name) = ?)"
+                params.extend([f"%{u_mp}%", u_state])
 
         query += " ORDER BY updated_at DESC"
 
@@ -421,6 +427,9 @@ class InvestigationService:
         calibrated_count = sum(1 for c in cases if c.get("calibration_feedback") != "NONE")
         confirmed_anomalies = sum(1 for c in cases if c.get("calibration_feedback") == "CONFIRMED_ANOMALY")
         false_positives = sum(1 for c in cases if c.get("calibration_feedback") == "FALSE_POSITIVE")
+        policy_exemptions = sum(1 for c in cases if c.get("calibration_feedback") == "POLICY_EXEMPTION")
+        total_eval = confirmed_anomalies + false_positives
+        precision_pct = round((confirmed_anomalies / total_eval) * 100, 1) if total_eval > 0 else 100.0
 
         return {
             "total_active_cases": len(cases),
@@ -431,8 +440,7 @@ class InvestigationService:
                 "total_calibrated": calibrated_count,
                 "confirmed_anomalies": confirmed_anomalies,
                 "false_positives": false_positives,
-                "precision_rate_pct": round(
-                    (confirmed_anomalies / max(1, confirmed_anomalies + false_positives)) * 100, 1
-                ),
+                "policy_exemptions": policy_exemptions,
+                "precision_rate_pct": precision_pct,
             },
         }

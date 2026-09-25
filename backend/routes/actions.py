@@ -22,10 +22,21 @@ class UpdateReviewRequest(BaseModel):
 
 
 @router.get("/{rec_id}", response_model=Dict[str, Any])
-def get_work_review_status(rec_id: str):
-    """Retrieves saved review state and AC-19 checklist actions for a work."""
+def get_work_review_status(
+    rec_id: str,
+    user: UserProfile = Depends(get_current_user),
+    scope: Dict[str, Any] = Depends(get_tenant_scope),
+):
+    """Retrieves saved review state and AC-19 checklist actions for a work with tenant boundary checks."""
+    ds = DataService.get_instance()
+    rec_clean = str(rec_id).strip()
+    if not ds.verify_work_access(rec_clean, scope):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Forbidden: Review file for #{rec_clean} is outside your territorial jurisdiction.",
+        )
     svc = AuditService.get_instance()
-    return svc.get_review_state(rec_id)
+    return svc.get_review_state(rec_clean)
 
 
 @router.post("/{rec_id}", response_model=Dict[str, Any])
