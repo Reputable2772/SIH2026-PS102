@@ -181,7 +181,7 @@ import pandas as pd
 from fastapi import Depends
 from pydantic import BaseModel
 
-from backend.core.auth import UserProfile, require_any_permission
+from backend.core.auth import UserProfile, get_tenant_scope, require_any_permission
 from backend.services.data_service import DataService
 
 
@@ -210,24 +210,66 @@ def simulate_thresholds(
             "review_state_works",
         )
     ),
+    scope: Dict[str, Any] = Depends(get_tenant_scope),
 ):
-    """Dynamically simulates changing statutory thresholds across all canonical works (Guarded by RBAC)."""
+    """Dynamically simulates changing statutory thresholds across works (Guarded by RBAC & Tenant Scoping)."""
     ds = DataService.get_instance()
-    df = ds.df_works
+    df = ds.apply_tenant_filter(ds.df_works, scope)
 
-    days_rec = pd.to_numeric(df.get("days_rec_to_sanction", 0), errors="coerce").fillna(0)
-    days_sanc = pd.to_numeric(df.get("days_since_sanction", 0), errors="coerce").fillna(0)
-    has_end = df["ACTUAL_END_DATE"].notna() if "ACTUAL_END_DATE" in df.columns else False
-    sanc = df["SANCTION_AMOUNT"]
-    disb = df["total_disbursed"]
+    if df.empty:
+        return {
+            "total_works": 0,
+            "parameters": payload.model_dump(),
+            "sanction_sla_breaches": 0,
+            "execution_sla_breaches": 0,
+            "stalled_works": 0,
+            "budget_overruns": 0,
+            "peer_cost_outliers": 0,
+            "simulated_critical_count": 0,
+            "simulated_high_count": 0,
+        }
 
-    sla_breaches = int((days_rec > payload.sla_days).sum())
-    exec_breaches = int(((days_sanc > payload.execution_days) & (~has_end)).sum())
-    stalled_works = int(((sanc > 0) & (disb == 0) & (days_sanc > 90)).sum())
-    overruns = int(((sanc > 0) & (disb > sanc * 1.05)).sum())
+    days_rec = pd.to_numeric(
+        df["days_rec_to_sanction"] if "days_rec_to_sanction" in df.columns else pd.Series(0, index=df.index),
+        errors="coerce",
+    ).fillna(0)
+    days_sanc = pd.to_numeric(
+        df["days_since_sanction"] if "days_since_sanction" in df.columns else pd.Series(0, index=df.index),
+        errors="coerce",
+    ).fillna(0)
+    has_end = (
+        df["ACTUAL_END_DATE"].notna() if "ACTUAL_END_DATE" in df.columns else pd.Series(False, index=df.index)
+    )
+    sanc = pd.to_numeric(df["SANCTION_AMOUNT"], errors="coerce").fillna(0.0)
+    disb = pd.to_numeric(df["total_disbursed"], errors="coerce").fillna(0.0)
 
-    is_crit = (sanc > 0) & ((disb > sanc * 1.05) | ((days_sanc > payload.execution_days * 2) & (~has_end)))
-    sim_crit = int(is_crit.sum())
+    # Z-threshold cost outlier calculation across works
+    sanc_mean = float(sanc.mean())
+    sanc_std = float(sanc.std())
+    if pd.isna(sanc_std) or sanc_std == 0:
+        cost_outliers = pd.Series(False, index=df.index)
+    else:
+        z_scores = (sanc - sanc_mean) / sanc_std
+        cost_outliers = z_scores > payload.z_threshold
+
+    mask_sla = days_rec > payload.sla_days
+    mask_exec = (days_sanc > payload.execution_days) & (~has_end)
+    mask_stalled = (sanc > 0) & (disb == 0) & (days_sanc > 90)
+    mask_overrun = (sanc > 0) & (disb > sanc * 1.05)
+
+    sla_breaches = int(mask_sla.sum())
+    exec_breaches = int(mask_exec.sum())
+    stalled_works = int(mask_stalled.sum())
+    overruns = int(mask_overrun.sum())
+    peer_cost_outliers = int(cost_outliers.sum())
+
+    # Critical conditions: severe overrun or stalled for 2x statutory execution period
+    mask_crit = (sanc > 0) & (mask_overrun | ((days_sanc > payload.execution_days * 2) & (~has_end)))
+    sim_crit = int(mask_crit.sum())
+
+    # High priority: non-critical SLA breaches, execution delays, stalled works, or cost outliers
+    mask_high = (mask_sla | mask_exec | mask_stalled | cost_outliers) & (~mask_crit)
+    sim_high = int(mask_high.sum())
 
     return {
         "total_works": len(df),
@@ -236,6 +278,7 @@ def simulate_thresholds(
         "execution_sla_breaches": exec_breaches,
         "stalled_works": stalled_works,
         "budget_overruns": overruns,
+        "peer_cost_outliers": peer_cost_outliers,
         "simulated_critical_count": sim_crit,
-        "simulated_high_count": max(0, sla_breaches + exec_breaches - sim_crit),
+        "simulated_high_count": sim_high,
     }
