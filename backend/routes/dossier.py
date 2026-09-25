@@ -50,6 +50,13 @@ def export_dossier_html(
         for s in d.get("risk_signals", [])
     )
 
+    evidence_dict = d["five_questions"].get("q4_supporting_evidence", {})
+    evidence_items = (
+        "".join(f"<li><strong>{k.replace('_', ' ').title()}:</strong> {v}</li>" for k, v in evidence_dict.items())
+        if isinstance(evidence_dict, dict)
+        else f"<p>{evidence_dict}</p>"
+    )
+
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -88,7 +95,8 @@ def export_dossier_html(
         <div class="qa"><div class="q">Q1: What happened?</div><div class="a">{d["five_questions"]["q1_what_happened"]}</div></div>
         <div class="qa"><div class="q">Q2: Why is it unusual?</div><div class="a">{d["five_questions"]["q2_why_unusual"]}</div></div>
         <div class="qa"><div class="q">Q3: Compared with what?</div><div class="a">{d["five_questions"]["q3_compared_with_what"]}</div></div>
-        <div class="qa"><div class="q">Q4: Limitations</div><div class="a">{d["five_questions"]["q5_limitations"]}</div></div>
+        <div class="qa"><div class="q">Q4: What empirical evidence supports the anomalous categorization?</div><div class="a"><ul>{evidence_items}</ul></div></div>
+        <div class="qa"><div class="q">Q5: What are the analytical boundaries and limitations?</div><div class="a">{d["five_questions"]["q5_limitations"]}</div></div>
     </div>
 
     <div class="card">

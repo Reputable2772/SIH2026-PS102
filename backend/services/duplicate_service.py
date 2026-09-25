@@ -16,7 +16,11 @@ class DuplicateService:
     def __init__(self):
         self.ds = DataService.get_instance()
         self._candidate_pairs: List[Dict[str, Any]] = []
-        self._resolutions: Dict[str, Dict[str, Any]] = {}
+        from backend.services.audit_service import AuditService
+
+        self._resolutions: Dict[str, Dict[str, Any]] = (
+            AuditService.get_instance().get_all_duplicate_resolutions()
+        )
         self._precompute_candidates()
 
     @classmethod
@@ -31,8 +35,10 @@ class DuplicateService:
         if df.empty:
             return
 
-        # Sample across major states to generate realistic, representative forensic duplicate pairs
-        target_states = ["MAHARASHTRA", "UTTAR PRADESH", "KARNATAKA", "TAMIL NADU", "BIHAR", "WEST BENGAL"]
+        # Scan across all states in master dataset for nationwide coverage
+        target_states = [s.upper() for s in self.ds.state_metrics.keys()]
+        if not target_states:
+            target_states = list(df["_state_upper"].dropna().unique())
         pairs_found = []
 
         for st in target_states:
@@ -40,11 +46,12 @@ class DuplicateService:
             if st_df.empty:
                 continue
 
+            state_pairs = 0
             # Group by IDA to find highly localized suspected duplicates
             for ida_name, group in st_df.groupby("_ida_upper"):
                 if len(group) < 2:
                     continue
-                records = group.head(60).to_dict(orient="records")
+                records = group.head(40).to_dict(orient="records")
                 n = len(records)
 
                 for i in range(n):
@@ -138,15 +145,22 @@ class DuplicateService:
                                     },
                                 }
                             )
-                            if len(pairs_found) >= 150:
+                            state_pairs += 1
+                            if state_pairs >= 15 or len(pairs_found) >= 300:
                                 break
-                    if len(pairs_found) >= 150:
+                    if state_pairs >= 15 or len(pairs_found) >= 300:
                         break
-            if len(pairs_found) >= 150:
+            if len(pairs_found) >= 300:
                 break
 
         # Sort descending by similarity score
         self._candidate_pairs = sorted(pairs_found, key=lambda p: p["similarity_pct"], reverse=True)
+        # Apply any previously persisted resolutions from SQLite
+        for p in self._candidate_pairs:
+            if p["pair_id"] in self._resolutions:
+                res = self._resolutions[p["pair_id"]]
+                p["status"] = res["status"]
+                p["resolution"] = res
         print(f"[✓] DuplicateService indexed {len(self._candidate_pairs)} candidate duplicate/ghost work pairs.")
 
     def get_duplicates(
@@ -214,6 +228,17 @@ class DuplicateService:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         self._resolutions[pair_id] = res
+
+        # Persist to SQLite database
+        from backend.services.audit_service import AuditService
+
+        AuditService.get_instance().save_duplicate_resolution(
+            pair_id=pair_id,
+            status=decision,
+            resolved_by=user,
+            notes=notes,
+            timestamp=res["timestamp"],
+        )
 
         # Update candidate in list if present
         for p in self._candidate_pairs:

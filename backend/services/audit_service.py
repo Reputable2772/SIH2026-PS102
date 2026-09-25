@@ -62,6 +62,17 @@ class AuditService:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS duplicate_resolutions (
+                    pair_id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL,
+                    resolved_by TEXT NOT NULL,
+                    notes TEXT NOT NULL DEFAULT '',
+                    timestamp TEXT NOT NULL
+                )
+                """
+            )
             conn.commit()
 
     def get_review_state(self, work_rec_id: str) -> Dict[str, Any]:
@@ -87,9 +98,49 @@ class AuditService:
                 "status": "UNDER_REVIEW",
                 "checked_actions": [],
                 "auditor_notes": "",
-                "auditor_name": "Dr. Rajesh Verma (MoSPI Oversight)",
+                "auditor_name": "",
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
+
+    def get_all_duplicate_resolutions(self) -> Dict[str, Dict[str, Any]]:
+        """Loads all persisted duplicate resolutions from SQLite."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM duplicate_resolutions")
+            rows = cursor.fetchall()
+            return {
+                r["pair_id"]: {
+                    "pair_id": r["pair_id"],
+                    "status": r["status"],
+                    "resolved_by": r["resolved_by"],
+                    "notes": r["notes"],
+                    "timestamp": r["timestamp"],
+                }
+                for r in rows
+            }
+
+    def save_duplicate_resolution(
+        self,
+        pair_id: str,
+        status: str,
+        resolved_by: str,
+        notes: str,
+        timestamp: str,
+    ) -> None:
+        """Persists duplicate investigator decision to SQLite."""
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO duplicate_resolutions (pair_id, status, resolved_by, notes, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(pair_id) DO UPDATE SET
+                    status=excluded.status,
+                    resolved_by=excluded.resolved_by,
+                    notes=excluded.notes,
+                    timestamp=excluded.timestamp
+                """,
+                (pair_id, status, resolved_by, notes, timestamp),
+            )
+            conn.commit()
 
     def save_review_state(
         self,
