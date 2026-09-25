@@ -56,8 +56,9 @@ class AgencyConcentrationDetector(BaseDetector):
                     "designate a single implementing agency (e.g. DRDA / Zila Parishad) for this jurisdiction."
                     if is_single_agency
                     else ""
-                )
-                for _, row in dominant_works.head(5).iterrows():  # Top sample works for reviewer queue
+                # Prioritize top financial exposure works for the reviewer queue
+                dominant_works_sorted = dominant_works.sort_values(by="SANCTION_AMOUNT", ascending=False) if "SANCTION_AMOUNT" in dominant_works.columns else dominant_works
+                for _, row in dominant_works_sorted.head(5).iterrows():  # Top exposure works for reviewer queue
                     rec_id = str(row["WORK_RECOMMENDATION_DTL_ID"])
                     work_id = str(row.get("WORK_ID") or rec_id)
 

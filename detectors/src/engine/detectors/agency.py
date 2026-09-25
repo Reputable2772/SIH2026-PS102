@@ -24,7 +24,12 @@ class IAOverloadDetector(BaseDetector):
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
         if "ia_name" not in df_works.columns:
             return []
-        valid_ias = df_works[df_works["ia_name"].notna()].copy()
+        
+        disallowed = {"", "N/A", "NA", "NAN", "NONE", "NULL", "NOT APPLICABLE", "OTHER", "UNKNOWN"}
+        valid_ias = df_works[
+            df_works["ia_name"].notna()
+            & (~df_works["ia_name"].astype(str).str.strip().str.upper().isin(disallowed))
+        ].copy()
         if valid_ias.empty:
             return []
 

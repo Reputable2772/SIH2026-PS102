@@ -38,11 +38,16 @@ class CostPeerOutlierDetector(BaseDetector):
                 continue
 
             # Robust Z-score using Median and Normal-equivalent IQR (IQR / 1.349)
-            norm_iqr = base.cost_iqr / 1.349 if base.cost_iqr > 0 else max(base.cost_std, 1000.0)
+            # Enforce scale-dependent denominator floor to prevent division breakdown on fixed-budget cohorts
+            min_denom_floor = max(base.cost_median * 0.05, 5000.0)
+            raw_norm_iqr = base.cost_iqr / 1.349 if base.cost_iqr > 0 else max(base.cost_std, 1000.0)
+            norm_iqr = max(raw_norm_iqr, min_denom_floor)
             diff = amt - base.cost_median
             z_score = diff / norm_iqr if norm_iqr > 0 else 0.0
 
-            if z_score >= self.z_threshold:
+            # Require both robust Z-score breach AND at least 15% positive cost excursion from peer median
+            pct_excursion = diff / max(base.cost_median, 1.0)
+            if z_score >= self.z_threshold and pct_excursion >= 0.15:
                 # Severity scales with Z-score magnitude
                 sev = float(np.clip(0.4 + (z_score - self.z_threshold) * 0.12, 0.4, 1.0))
                 # Confidence combines peer group size confidence and record DQI

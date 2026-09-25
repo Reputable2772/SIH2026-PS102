@@ -90,6 +90,7 @@ class EntityRecurrenceDetector:
         display_type = "Vendor / Contractor" if is_vendor else "Implementing Agency"
         prefix = "VND" if is_vendor else "IA"
 
+        candidate_data = []
         for entity, f_list in entity_findings.items():
             N = entity_portfolio.get(entity, 0)
             if N < self.min_exposure:
@@ -124,10 +125,52 @@ class EntityRecurrenceDetector:
             except Exception:
                 pval = 1.0 if z_score <= 0 else 0.01
 
+            candidate_data.append({
+                "entity": entity,
+                "f_list": f_list,
+                "anom_ids": anom_ids,
+                "k": k,
+                "N": N,
+                "p0_entity": p0_entity,
+                "shrunk_p": shrunk_p,
+                "post_sd": post_sd,
+                "z_score": z_score,
+                "prob_exceed": prob_exceed,
+                "pval": pval,
+            })
+
+        if not candidate_data:
+            return findings
+
+        # Benjamini-Hochberg False Discovery Rate (FDR) q-value calibration
+        m = len(candidate_data)
+        sorted_indices = sorted(range(m), key=lambda idx: candidate_data[idx]["pval"])
+        q_values = [1.0] * m
+        min_q = 1.0
+        for rank_rev, idx in enumerate(reversed(sorted_indices), start=1):
+            rank = m - rank_rev + 1
+            raw_q = candidate_data[idx]["pval"] * m / rank
+            min_q = min(min_q, raw_q)
+            q_values[idx] = min(1.0, min_q)
+
+        for idx, item in enumerate(candidate_data):
+            entity = item["entity"]
+            f_list = item["f_list"]
+            anom_ids = item["anom_ids"]
+            k = item["k"]
+            N = item["N"]
+            p0_entity = item["p0_entity"]
+            shrunk_p = item["shrunk_p"]
+            post_sd = item["post_sd"]
+            z_score = item["z_score"]
+            prob_exceed = item["prob_exceed"]
+            pval = item["pval"]
+            qval = q_values[idx]
+
             is_significant = (
-                (z_score >= self.significance_threshold)
-                or (prob_exceed >= 0.95)
-                or (pval <= 0.05)
+                (qval <= 0.15 and z_score >= self.significance_threshold)
+                or (prob_exceed >= 0.95 and z_score >= 1.0)
+                or (pval <= 0.05 and z_score >= 1.5)
                 or (k == N >= self.min_anomalies and N <= 5)
             )
 
@@ -167,6 +210,7 @@ class EntityRecurrenceDetector:
                             "posterior_exceedance_prob": round(float(prob_exceed), 4),
                             "z_score": round(float(z_score), 3),
                             "p_value": round(float(pval), 5),
+                            "fdr_q_value": round(float(qval), 5),
                             "contributing_anomaly_types": codes,
                         },
                         explanation=(

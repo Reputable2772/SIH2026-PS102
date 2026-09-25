@@ -88,34 +88,41 @@ class ExecutionDeadlineDetector(BaseDetector):
         if "ACTUAL_END_DATE" not in df_works.columns or "house" not in df_works.columns:
             return []
 
+        # Normalize house representation: default to standard statutory SLA unless explicitly RAJYA_SABHA
+        house_norm = (
+            df_works["house"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .str.replace(" ", "_")
+        )
+        is_rs = house_norm == "RAJYA_SABHA"
+        sla_series = pd.Series(np.where(is_rs, self.rs_sla, self.ls_sla), index=df_works.index)
+
         # Check completed works
         if "days_sanction_to_completion" in df_works.columns:
-            completed = df_works[df_works["ACTUAL_END_DATE"].notna()].copy()
-            ls_over = completed[
-                (completed["house"] == "LOK_SABHA") & (completed["days_sanction_to_completion"] > self.ls_sla)
-            ]
-            rs_over = completed[
-                (completed["house"] == "RAJYA_SABHA") & (completed["days_sanction_to_completion"] > self.rs_sla)
-            ]
+            has_comp_days = df_works["days_sanction_to_completion"].notna()
+            comp_mask = df_works["ACTUAL_END_DATE"].notna() & has_comp_days & (df_works["days_sanction_to_completion"] > sla_series)
+            completed_over = df_works[comp_mask].copy()
         else:
-            ls_over = pd.DataFrame()
-            rs_over = pd.DataFrame()
+            completed_over = pd.DataFrame()
 
         # Check in-progress works that have already surpassed the SLA
         if "SANCTION_DATE" in df_works.columns and "days_since_sanction" in df_works.columns:
-            ongoing = df_works[df_works["ACTUAL_END_DATE"].isna() & df_works["SANCTION_DATE"].notna()].copy()
-            ls_ong_over = ongoing[(ongoing["house"] == "LOK_SABHA") & (ongoing["days_since_sanction"] > self.ls_sla)]
-            rs_ong_over = ongoing[(ongoing["house"] == "RAJYA_SABHA") & (ongoing["days_since_sanction"] > self.rs_sla)]
+            has_sanc_days = df_works["days_since_sanction"].notna()
+            ong_mask = df_works["ACTUAL_END_DATE"].isna() & df_works["SANCTION_DATE"].notna() & has_sanc_days & (df_works["days_since_sanction"] > sla_series)
+            ong_over = df_works[ong_mask].copy()
         else:
-            ls_ong_over = pd.DataFrame()
-            rs_ong_over = pd.DataFrame()
+            ong_over = pd.DataFrame()
 
-        all_flagged = pd.concat([ls_over, rs_over, ls_ong_over, rs_ong_over], ignore_index=True)
+        all_flagged = pd.concat([completed_over, ong_over], ignore_index=True)
 
         for _, row in all_flagged.iterrows():
             is_comp = pd.notna(row["ACTUAL_END_DATE"])
             duration = safe_float(row.get("days_sanction_to_completion", 0.0)) if is_comp else safe_float(row.get("days_since_sanction", 0.0))
-            sla = self.rs_sla if row["house"] == "RAJYA_SABHA" else self.ls_sla
+            is_row_rs = str(row.get("house", "")).strip().upper().replace(" ", "_") == "RAJYA_SABHA"
+            sla = self.rs_sla if is_row_rs else self.ls_sla
             overage = duration - sla
 
             sev = float(np.clip(0.2 + (overage / 365.0) * 0.8, 0.2, 1.0))

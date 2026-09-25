@@ -87,8 +87,10 @@ class DuplicateWorkDetector(BaseDetector):
                     rec_id1 = str(w1["WORK_RECOMMENDATION_DTL_ID"])
                     rec_id2 = str(w2["WORK_RECOMMENDATION_DTL_ID"])
                     work_id1 = str(w1.get("WORK_ID") or rec_id1)
+                    work_id2 = str(w2.get("WORK_ID") or rec_id2)
 
-                    f = Finding(
+                    # Emit finding for w1 pointing to w2
+                    f1 = Finding(
                         finding_id=f"FIND-D12-{rec_id1}-{rec_id2}",
                         work_id=work_id1,
                         work_rec_id=rec_id1,
@@ -99,7 +101,7 @@ class DuplicateWorkDetector(BaseDetector):
                         confidence=conf,
                         evidence={
                             "matched_work_rec_id": rec_id2,
-                            "matched_work_id": str(w2.get("WORK_ID") or rec_id2),
+                            "matched_work_id": work_id2,
                             "text_similarity": round(sim, 3),
                             "work_1_desc": w1["WORK_DESCRIPTION"][:100],
                             "work_2_desc": w2["WORK_DESCRIPTION"][:100],
@@ -121,7 +123,43 @@ class DuplicateWorkDetector(BaseDetector):
                         ida_name=w1.get("IDA_NAME"),
                         sanction_amount=c1,
                     )
-                    findings.append(f)
+                    findings.append(f1)
+
+                    # Emit reciprocal finding for w2 pointing to w1 so neither work is scored as risk-free
+                    f2 = Finding(
+                        finding_id=f"FIND-D12-{rec_id2}-{rec_id1}",
+                        work_id=work_id2,
+                        work_rec_id=rec_id2,
+                        detector_code=self.code,
+                        detector_name=self.name,
+                        category=self.category,
+                        severity=sev,
+                        confidence=conf,
+                        evidence={
+                            "matched_work_rec_id": rec_id1,
+                            "matched_work_id": work_id1,
+                            "text_similarity": round(sim, 3),
+                            "work_1_desc": w2["WORK_DESCRIPTION"][:100],
+                            "work_2_desc": w1["WORK_DESCRIPTION"][:100],
+                            "work_1_cost": c2,
+                            "work_2_cost": c1,
+                            "same_district": same_district,
+                            "district_1": w2.get("IDA_NAME"),
+                            "district_2": w1.get("IDA_NAME"),
+                        },
+                        explanation=(
+                            f"Work shares {sim:.1%} text description similarity and matching cost (₹{c2:,.0f} vs ₹{c1:,.0f}) "
+                            f"with Work {rec_id1} in {state}. Candidate for duplicate billing or repeated scope."
+                        ),
+                        next_review_action=(
+                            "Conduct field verification of GPS coordinates and photographic completion evidence to confirm "
+                            "the two records represent distinct physical assets and not duplicate funding of one structure."
+                        ),
+                        state_name=state,
+                        ida_name=w2.get("IDA_NAME"),
+                        sanction_amount=c2,
+                    )
+                    findings.append(f2)
                     if self.max_findings and len(findings) >= self.max_findings:
                         return findings
 
