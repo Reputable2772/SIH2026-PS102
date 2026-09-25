@@ -117,9 +117,12 @@ def get_mp_detail(
                 )
 
     # Get works recommended by this MP, scoped to tenant
-    works_sub = ds.apply_tenant_filter(
-        ds.df_works[ds.df_works["MP_NAME"].astype(str).str.lower() == target_mp["mp_name"].lower()], scope
-    )
+    mp_tokens = [t.lower() for t in str(target_mp["mp_name"]).split() if len(t) > 2]
+    if mp_tokens:
+        mp_mask = ds.df_works["MP_NAME"].astype(str).apply(lambda v: all(t in v.lower() for t in mp_tokens))
+    else:
+        mp_mask = ds.df_works["MP_NAME"].astype(str).str.lower() == target_mp["mp_name"].lower()
+    works_sub = ds.apply_tenant_filter(ds.df_works[mp_mask], scope)
 
     categories = works_sub["WORK_CATEGORY"].value_counts().head(6).to_dict()
     recent_works = []

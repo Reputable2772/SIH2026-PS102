@@ -58,15 +58,15 @@ def get_work_details(
     ds = DataService.get_instance()
     rec_clean = str(rec_id).strip()
 
+    match = ds.df_works[ds.df_works["WORK_RECOMMENDATION_DTL_ID"].astype(str) == rec_clean]
+    if match.empty:
+        raise HTTPException(status_code=404, detail=f"Work with recommendation ID '{rec_id}' not found.")
+
     if not ds.verify_work_access(rec_clean, scope):
         raise HTTPException(
             status_code=403,
             detail=f"Forbidden: Work #{rec_clean} is outside your active tenant jurisdiction.",
         )
-
-    match = ds.df_works[ds.df_works["WORK_RECOMMENDATION_DTL_ID"].astype(str) == rec_clean]
-    if match.empty:
-        raise HTTPException(status_code=404, detail=f"Work with recommendation ID '{rec_id}' not found.")
     row = match.iloc[0].to_dict()
 
     # Redact vendor if viewer lacks unredacted vendor permissions

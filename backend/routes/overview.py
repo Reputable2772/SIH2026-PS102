@@ -20,13 +20,15 @@ def get_platform_overview(scope: Dict[str, Any] = Depends(get_tenant_scope)):
 
 
 @router.get("/trends", response_model=List[Dict[str, Any]])
-def get_macro_trends():
-    """Returns longitudinal operational indicators (2020-2026), cached for instantaneous delivery."""
+def get_macro_trends(scope: Dict[str, Any] = Depends(get_tenant_scope)):
+    """Returns longitudinal operational indicators (2020-2026), scoped to active tenant."""
     ds = DataService.get_instance()
-    if hasattr(ds, "macro_trends") and ds.macro_trends:
+    is_unscoped = not scope or not scope.get("strict_isolation", True) or scope.get("role") == "CENTRAL_AUDITOR"
+    if is_unscoped and hasattr(ds, "macro_trends") and ds.macro_trends:
         return ds.macro_trends
 
-    trends_df = ds.engine.analyze_trends(ds.df_works)
+    scoped_df = ds.apply_tenant_filter(ds.df_works, scope)
+    trends_df = ds.engine.analyze_trends(scoped_df)
     if trends_df.empty:
         return []
     records = []

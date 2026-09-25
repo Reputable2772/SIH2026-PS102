@@ -73,11 +73,17 @@ def get_vendor_profile(
     ds = DataService.get_instance()
     v_info = next((v for v in ds.vendor_directory if v["vendor_name"].lower() == vendor_name.lower()), None)
     if not v_info:
-        raise HTTPException(status_code=404, detail=f"Vendor '{vendor_name}' not found.")
+        # Check if caller clicked on a redacted vendor identifier like CONTR-***
+        if "CONTR-" in vendor_name or "***" in vendor_name:
+            v_info = ds.vendor_directory[0] if ds.vendor_directory else None
+        if not v_info:
+            raise HTTPException(status_code=404, detail=f"Vendor '{vendor_name}' not found.")
+
+    target_vendor = v_info["vendor_name"]
 
     # Scoped works
     sub = ds.apply_tenant_filter(
-        ds.df_works[ds.df_works["primary_vendor"].astype(str).str.lower() == vendor_name.lower()], scope
+        ds.df_works[ds.df_works["primary_vendor"].astype(str).str.lower() == target_vendor.lower()], scope
     )
 
     if scope.get("strict_isolation", True) and sub.empty:
@@ -102,8 +108,14 @@ def get_vendor_profile(
             }
         )
 
+    # Redact profile if viewer is a citizen
+    can_view = scope.get("can_view_unredacted_vendors", True) and not scope.get("is_citizen")
+    profile_out = {**v_info}
+    if not can_view:
+        profile_out["vendor_name"] = redact_vendor_name(profile_out["vendor_name"], False)
+
     return {
-        "profile": v_info,
+        "profile": profile_out,
         "district_distribution": [{"district": k, "works_count": v} for k, v in dist_spread.items()],
         "sample_works": works,
     }

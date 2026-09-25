@@ -364,6 +364,9 @@ class DataService:
                 }
             )
         self.vendor_directory = sorted(vendors, key=lambda x: x["total_disbursed_cr"], reverse=True)
+        self._dominant_vendors = {
+            v["vendor_name"] for v in vendors if v["hhi_risk"] == "CONCENTRATED" or v["total_works"] >= 5
+        }
 
     def _precompute_performance_caches(self):
         """Precomputes vector search columns, inverted lookup dictionaries, and static macro trends."""
@@ -440,20 +443,29 @@ class DataService:
 
     def _compute_overview_dict(self, df: pd.DataFrame) -> Dict[str, Any]:
         total_works = len(df)
-        total_sanc = float(df["SANCTION_AMOUNT"].sum())
-        total_disb = float(df["total_disbursed"].sum())
-        completed_cnt = int(df["ACTUAL_END_DATE"].notna().sum()) if "ACTUAL_END_DATE" in df.columns else 0
-        avg_dqi = float(df["dqi_score"].mean()) if "dqi_score" in df.columns else 0.85
-        p_counts = df["priority"].value_counts().to_dict()
-        cat_counts = df["WORK_CATEGORY"].value_counts().head(6).to_dict()
+        total_sanc = float(df["SANCTION_AMOUNT"].sum()) if not df.empty else 0.0
+        total_disb = float(df["total_disbursed"].sum()) if not df.empty else 0.0
+        completed_cnt = int(df["ACTUAL_END_DATE"].notna().sum()) if (not df.empty and "ACTUAL_END_DATE" in df.columns) else 0
+
+        avg_dqi = 0.85
+        if not df.empty and "dqi_score" in df.columns:
+            m = df["dqi_score"].mean()
+            if pd.notna(m):
+                avg_dqi = float(m)
+
+        p_counts = df["priority"].value_counts().to_dict() if not df.empty else {}
+        cat_counts = df["WORK_CATEGORY"].value_counts().head(6).to_dict() if not df.empty else {}
+
+        comp_pct = round((completed_cnt / max(total_works, 1)) * 100, 1) if total_works > 0 else 0.0
+        util_pct = round((total_disb / max(total_sanc, 1.0)) * 100, 1) if total_sanc > 0 else 0.0
 
         return {
             "total_works": total_works,
             "total_sanctioned_cr": round(total_sanc / 1e7, 2),
             "total_disbursed_cr": round(total_disb / 1e7, 2),
             "completed_works": completed_cnt,
-            "overall_completion_pct": round((completed_cnt / max(total_works, 1)) * 100, 1),
-            "overall_utilization_pct": round((total_disb / max(total_sanc, 1.0)) * 100, 1),
+            "overall_completion_pct": comp_pct,
+            "overall_utilization_pct": util_pct,
             "avg_dqi_score": round(avg_dqi, 3),
             "priority_summary": {
                 "CRITICAL": p_counts.get("CRITICAL", 0),
@@ -462,8 +474,8 @@ class DataService:
                 "LOW": p_counts.get("LOW", 0),
             },
             "top_categories": [{"name": k, "count": v} for k, v in cat_counts.items()],
-            "active_states_count": int(df["STATE_NAME"].nunique()),
-            "active_districts_count": int(df["IDA_NAME"].nunique()) if "IDA_NAME" in df.columns else 0,
+            "active_states_count": int(df["STATE_NAME"].nunique()) if not df.empty else 0,
+            "active_districts_count": int(df["IDA_NAME"].nunique()) if (not df.empty and "IDA_NAME" in df.columns) else 0,
         }
 
     def _compute_districts_for_state(self, state_name: str) -> List[Dict[str, Any]]:
@@ -618,7 +630,7 @@ class DataService:
         if sort_by:
             ascending = str(sort_order).lower() == "asc"
             s_by = str(sort_by).lower()
-            if s_by == "priority":
+            if s_by in ["priority", "risk_score", "risk", "risk_tier"]:
                 prio_order = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
                 df = df.copy()
                 df["_prio_rank"] = df["priority"].map(prio_order).fillna(0)
@@ -790,15 +802,16 @@ class DataService:
 
         # 4. Contractor Concentration Signal (up to 15 pts)
         v_name = str(row.get("primary_vendor", "")).strip()
-        if v_name and v_name not in ("N/A", "nan", "None", ""):
+        dominant_vendors = getattr(self, "_dominant_vendors", set())
+        if v_name and v_name not in ("N/A", "nan", "None", "") and v_name in dominant_vendors:
             pts = 12
             score += pts
             signals.append(
                 {
                     "weight": pts,
-                    "name": "Single Contractor Allocation in Jurisdiction",
-                    "severity": "MEDIUM",
-                    "explanation": f"Work awarded to contractor '{v_name}'; concentration analysis shows recurring awards in this district.",
+                    "name": "Single Contractor Concentration in Jurisdiction",
+                    "severity": "HIGH",
+                    "explanation": f"Work awarded to contractor '{v_name}' with verified high-concentration footprint (>5 projects / multi-crore dominance).",
                     "action": "Review tender participation records and competitive bidding documentation.",
                 }
             )
@@ -859,9 +872,13 @@ class DataService:
             observations.append(
                 f"Sanction delay of {days_rec} days exceeded statutory 45-day SLA by {days_rec - 45} days."
             )
-        if disb > sanc * 1.05:
+        if sanc > 0 and disb > sanc * 1.05:
             observations.append(
                 f"Disbursed funds (₹{disb:,.0f}) exceeded sanctioned budget (₹{sanc:,.0f}) by {(disb / sanc - 1):.1%}."
+            )
+        elif sanc == 0 and disb > 0:
+            observations.append(
+                f"Disbursed funds of ₹{disb:,.0f} released with zero recorded administrative sanction ceiling."
             )
         if days_sanc > 365 and not has_end:
             observations.append(f"Project has been active for {days_sanc} days without formal completion sign-off.")

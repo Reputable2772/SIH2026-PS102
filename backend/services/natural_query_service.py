@@ -43,7 +43,7 @@ class NaturalQueryService:
             role = scope.get("role")
             if role == "DISTRICT_AUTHORITY":
                 u_dist = str(scope.get("IDA_NAME", "")).strip().upper()
-                filtered = filtered[filtered["_ida_upper"] == u_dist]
+                filtered = filtered[filtered["_ida_upper"].apply(lambda v: u_dist in str(v) or str(v) in u_dist)]
                 applied_filters.append(f"District restricted to {scope.get('IDA_NAME')}")
             elif role == "STATE_NODAL_OFFICER":
                 u_state = str(scope.get("STATE_NAME", "")).strip().upper()
