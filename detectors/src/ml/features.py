@@ -55,7 +55,15 @@ class FeaturePipeline:
         df["log_sanction_amount"] = np.log1p(np.maximum(amt, 0.0))
 
         # 2. Recommendation turnaround
-        rec_days = pd.to_numeric(df["days_rec_to_sanction"], errors="coerce").fillna(30.0)
+        if "days_rec_to_sanction" not in df.columns or not pd.api.types.is_numeric_dtype(df["days_rec_to_sanction"]):
+            if "SANCTION_DATE" in df.columns and "RECOMMENDATION_DATE" in df.columns:
+                sanc = pd.to_datetime(df["SANCTION_DATE"], errors="coerce")
+                rec = pd.to_datetime(df["RECOMMENDATION_DATE"], errors="coerce")
+                rec_days = (sanc - rec).dt.days.fillna(30.0)
+            else:
+                rec_days = pd.Series(30.0, index=df.index)
+        else:
+            rec_days = pd.to_numeric(df["days_rec_to_sanction"], errors="coerce").fillna(30.0)
         df["days_rec_to_sanction_clean"] = np.clip(rec_days, 0.0, 365.0)
 
         # 3. Chamber binary flag
@@ -85,18 +93,18 @@ class FeaturePipeline:
         """
         df = df_works.copy()
 
-        sanc = pd.to_numeric(df["SANCTION_AMOUNT"], errors="coerce").fillna(0.0)
-        disb = pd.to_numeric(df["total_disbursed"], errors="coerce").fillna(0.0)
-        cnt = pd.to_numeric(df["payment_count"], errors="coerce").fillna(0.0)
+        sanc = pd.to_numeric(df.get("SANCTION_AMOUNT", 0.0), errors="coerce").fillna(0.0)
+        disb = pd.to_numeric(df.get("total_disbursed", 0.0), errors="coerce").fillna(0.0)
+        cnt = pd.to_numeric(df.get("payment_count", 0.0), errors="coerce").fillna(0.0)
 
         df["log_sanction_amount"] = np.log1p(np.maximum(sanc, 0.0))
         df["log_disbursed_amount"] = np.log1p(np.maximum(disb, 0.0))
         df["payment_count"] = np.clip(cnt, 0.0, 50.0)
 
-        rec_days = pd.to_numeric(df["days_rec_to_sanction"], errors="coerce").fillna(30.0)
+        rec_days = pd.to_numeric(df.get("days_rec_to_sanction", 30.0), errors="coerce").fillna(30.0)
         df["days_rec_to_sanction_clean"] = np.clip(rec_days, 0.0, 365.0)
 
-        pay_days = pd.to_numeric(df["days_sanction_to_first_payment"], errors="coerce").fillna(90.0)
+        pay_days = pd.to_numeric(df.get("days_sanction_to_first_payment", 90.0), errors="coerce").fillna(90.0)
         df["days_to_first_payment_clean"] = np.clip(pay_days, 0.0, 365.0)
 
         df["disbursement_ratio"] = np.clip(disb / np.maximum(sanc, 1.0), 0.0, 3.0)
@@ -118,6 +126,24 @@ class FeaturePipeline:
         """
         df = df_works.copy()
 
+        # Ensure days_since_sanction is present and numeric
+        if "days_since_sanction" not in df.columns or not pd.api.types.is_numeric_dtype(df["days_since_sanction"]):
+            sanc = pd.to_datetime(df.get("SANCTION_DATE"), errors="coerce")
+            df["days_since_sanction"] = (pd.Timestamp.now() - sanc).dt.days.fillna(0.0)
+        else:
+            df["days_since_sanction"] = pd.to_numeric(df["days_since_sanction"], errors="coerce").fillna(0.0)
+
+        if "days_sanction_to_completion" not in df.columns or not pd.api.types.is_numeric_dtype(
+            df["days_sanction_to_completion"]
+        ):
+            sanc = pd.to_datetime(df.get("SANCTION_DATE"), errors="coerce")
+            comp = pd.to_datetime(df.get("ACTUAL_END_DATE"), errors="coerce")
+            df["days_sanction_to_completion"] = (comp - sanc).dt.days.fillna(0.0)
+        else:
+            df["days_sanction_to_completion"] = pd.to_numeric(
+                df["days_sanction_to_completion"], errors="coerce"
+            ).fillna(0.0)
+
         # Observation eligibility check: work age must exceed statutory completion SLA
         is_rs = df["house"] == "RAJYA_SABHA"
         req_window = np.where(is_rs, observation_window_rs, observation_window_ls)
@@ -128,7 +154,8 @@ class FeaturePipeline:
             return eligible_df, pd.Series(dtype=int)
 
         # Label: breached = 1 if completion exceeded SLA or if work is still incomplete past SLA
-        is_comp = eligible_df["ACTUAL_END_DATE"].notna()
+        comp_date = pd.to_datetime(eligible_df.get("ACTUAL_END_DATE"), errors="coerce")
+        is_comp = comp_date.notna()
         sla = np.where(eligible_df["house"] == "RAJYA_SABHA", observation_window_rs, observation_window_ls)
 
         completed_breach = is_comp & (eligible_df["days_sanction_to_completion"] > sla)

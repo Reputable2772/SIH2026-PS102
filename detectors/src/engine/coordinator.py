@@ -187,6 +187,22 @@ class MPLADSEngine:
         if sample_size and sample_size < len(works):
             works = works.sample(n=sample_size, random_state=42).reset_index(drop=True)
 
+        # Standardize and coerce datetime columns so downstream ML and detectors have proper dtypes
+        date_cols = [
+            "RECOMMENDATION_DATE",
+            "SANCTION_DATE",
+            "EXPENDITURE_DATE",
+            "ACTUAL_END_DATE",
+            "TENURE_START_DATE",
+            "TENURE_END_DATE",
+            "first_payment_date",
+            "last_payment_date",
+            "CRT_DT",
+        ]
+        for col in date_cols:
+            if col in works.columns and not pd.api.types.is_datetime64_any_dtype(works[col]):
+                works[col] = pd.to_datetime(works[col], errors="coerce")
+
         return works
 
     def fit_baselines(self, works: pd.DataFrame) -> None:

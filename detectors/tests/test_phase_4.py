@@ -132,3 +132,17 @@ def test_ml_integration_manager_save_load_score(ml_training_corpus, tmp_path):
     ]
     integrated_scores = mgr2.score_works_integrated(ml_training_corpus, rule_findings, ml_findings)
     assert len(integrated_scores) == len(ml_training_corpus)
+
+
+def test_supervised_breach_predictor_string_dates(ml_training_corpus):
+    """Verifies breach predictor handles string-formatted SANCTION_DATE without quantile subtraction errors."""
+    corpus = ml_training_corpus.copy()
+    # Convert datetime columns to string/object representation as encountered in CSV loads
+    corpus["SANCTION_DATE"] = corpus["SANCTION_DATE"].astype(str)
+    if "ACTUAL_END_DATE" in corpus.columns:
+        corpus["ACTUAL_END_DATE"] = corpus["ACTUAL_END_DATE"].astype(str)
+
+    predictor = SupervisedBreachPredictor()
+    metrics = predictor.train_and_evaluate(corpus)
+    assert metrics is not None
+    assert predictor.is_fitted is True

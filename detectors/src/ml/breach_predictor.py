@@ -46,13 +46,24 @@ class SupervisedBreachPredictor:
 
         eligible_df["breach_label"] = labels
 
-        # Determine temporal split date (default: 70th percentile of sanction dates)
-        if split_date is None:
-            split_date = eligible_df["SANCTION_DATE"].dropna().quantile(0.70)
+        # Ensure SANCTION_DATE is coerced to datetime
+        eligible_df["SANCTION_DATE"] = pd.to_datetime(eligible_df["SANCTION_DATE"], errors="coerce")
+
+        if split_date is not None and not isinstance(split_date, pd.Timestamp):
+            split_date = pd.to_datetime(split_date)
+
+        # Determine temporal split date (default: 70th percentile of valid sanction dates)
+        sanc_valid = eligible_df["SANCTION_DATE"].dropna()
+        if split_date is None and not sanc_valid.empty:
+            split_date = sanc_valid.quantile(0.70)
 
         # Temporal split on SANCTION_DATE
-        train_mask = eligible_df["SANCTION_DATE"] < split_date
-        test_mask = eligible_df["SANCTION_DATE"] >= split_date
+        if split_date is not None and not sanc_valid.empty:
+            train_mask = eligible_df["SANCTION_DATE"] < split_date
+            test_mask = eligible_df["SANCTION_DATE"] >= split_date
+        else:
+            train_mask = pd.Series(False, index=eligible_df.index)
+            test_mask = pd.Series(False, index=eligible_df.index)
 
         # Fallback to random 70/30 split if temporal cohort has extreme imbalance or too small test set
         if train_mask.sum() < 50 or test_mask.sum() < 50:
@@ -118,7 +129,9 @@ class SupervisedBreachPredictor:
             return []
 
         # Target ongoing works
-        ongoing = df_works[df_works["ACTUAL_END_DATE"].isna() & df_works["SANCTION_DATE"].notna()].copy()
+        sanc_col = pd.to_datetime(df_works.get("SANCTION_DATE"), errors="coerce")
+        comp_col = pd.to_datetime(df_works.get("ACTUAL_END_DATE"), errors="coerce")
+        ongoing = df_works[comp_col.isna() & sanc_col.notna()].copy()
         if ongoing.empty:
             return []
 

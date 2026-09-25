@@ -19,6 +19,9 @@ class TrendAnalyzer:
         if "SANCTION_DATE" not in df.columns or df["SANCTION_DATE"].dropna().empty:
             return pd.DataFrame()
 
+        if not pd.api.types.is_datetime64_any_dtype(df["SANCTION_DATE"]):
+            df["SANCTION_DATE"] = pd.to_datetime(df["SANCTION_DATE"], errors="coerce")
+
         df["sanction_year"] = df["SANCTION_DATE"].dt.year
         valid = df[df["sanction_year"].notna() & (df["sanction_year"] >= 2020)].copy()
 

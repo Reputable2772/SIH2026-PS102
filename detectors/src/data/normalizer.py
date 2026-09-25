@@ -53,8 +53,17 @@ class DataNormalizer:
         target_cols = cols if cols is not None else [c for c in df.columns if c in DataNormalizer.DATE_COLUMNS]
         for col in target_cols:
             if col in df.columns:
-                # Fast parse with mixed/dayfirst fallback
-                df[col] = pd.to_datetime(df[col], format="%d-%b-%Y", errors="coerce")
+                if pd.api.types.is_datetime64_any_dtype(df[col]):
+                    continue
+                # Fast parse with DD-Mon-YYYY first, then fallback to flexible parsing for ISO/other formats
+                parsed = pd.to_datetime(df[col], format="%d-%b-%Y", errors="coerce")
+                missing_mask = parsed.isna() & df[col].notna() & (df[col].astype(str).str.strip().ne(""))
+                if missing_mask.any():
+                    fallback = pd.to_datetime(
+                        df.loc[missing_mask, col], format="mixed", errors="coerce", dayfirst=True
+                    )
+                    parsed = parsed.fillna(fallback)
+                df[col] = parsed
         return df
 
     @staticmethod
