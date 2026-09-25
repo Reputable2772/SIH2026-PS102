@@ -144,19 +144,24 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
         </g>
       </svg>
 
-      {/* Floating Hover Tooltip */}
-      {hoveredFeature && tooltipPos && (
-        <div
-          className="absolute z-30 pointer-events-none bg-[#0F172A]/95 border border-sky-500/50 rounded-xl p-3 shadow-2xl backdrop-blur-md min-w-[200px] text-xs transform -translate-x-1/2 -translate-y-full mb-3"
-          style={{
-            left: Math.max(100, Math.min(500, tooltipPos.x)),
-            top: Math.max(70, tooltipPos.y),
-          }}
-        >
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
-            <span className="font-bold text-white tracking-wide">{hoveredFeature.name}</span>
-            <span className="text-[10px] font-mono text-sky-400">Click to Inspect →</span>
-          </div>
+      {/* Floating Hover Tooltip with Adaptive Flip for Northern States */}
+      {hoveredFeature && tooltipPos && (() => {
+        const isNearTop = tooltipPos.y < 190;
+        return (
+          <div
+            className={clsx(
+              "absolute z-30 pointer-events-none bg-[#0F172A]/95 border border-sky-500/50 rounded-xl p-3 shadow-2xl backdrop-blur-md min-w-[210px] text-xs transform -translate-x-1/2 transition-all duration-75",
+              isNearTop ? "mt-3" : "-translate-y-full -mt-3"
+            )}
+            style={{
+              left: Math.max(110, Math.min(490, tooltipPos.x)),
+              top: tooltipPos.y,
+            }}
+          >
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+              <span className="font-bold text-white tracking-wide">{hoveredFeature.name}</span>
+              <span className="text-[10px] font-mono text-sky-400">Click to Inspect →</span>
+            </div>
 
           {hoveredMetric ? (
             <div className="pt-2 space-y-1.5 font-mono text-[11px]">
@@ -188,8 +193,9 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
               No local data cached for this territory.
             </div>
           )}
-        </div>
-      )}
+          </div>
+        );
+      })()}
 
       {/* Map Legend */}
       <div className="mt-2 w-full max-w-lg bg-[#0B1120]/90 border border-slate-800/80 rounded-xl px-4 py-2 flex items-center justify-between text-[10px] font-mono text-slate-400 backdrop-blur-sm">

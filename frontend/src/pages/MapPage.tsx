@@ -18,6 +18,9 @@ import {
   Users,
   Compass,
   CheckCircle2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -38,6 +41,8 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
   const [loadingWorks, setLoadingWorks] = useState<boolean>(false);
   const [metric, setMetric] = useState<'alerts' | 'sanctioned' | 'utilization'>('alerts');
   const [searchFilter, setSearchFilter] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('priority');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     api.getStateMapMetrics().then((data) => {
@@ -78,7 +83,11 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
     }
   };
 
-  const handleSelectDistrict = async (d: DistrictMetric) => {
+  const handleSelectDistrict = async (
+    d: DistrictMetric,
+    newSortBy = sortBy,
+    newSortOrder = sortOrder
+  ) => {
     setSelectedDistrict(d);
     setViewLevel('district');
     setLoadingWorks(true);
@@ -86,6 +95,8 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
       const res = await api.searchWorks({
         state: selectedState?.state_name,
         district: d.district_name,
+        sort_by: newSortBy,
+        sort_order: newSortOrder,
         page_size: 50,
       });
       setDistrictWorks(res.items);
@@ -94,6 +105,26 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
     } finally {
       setLoadingWorks(false);
     }
+  };
+
+  const handleSort = (column: string) => {
+    const nextOrder = sortBy === column && sortOrder === 'desc' ? 'asc' : 'desc';
+    setSortBy(column);
+    setSortOrder(nextOrder);
+    if (selectedDistrict) {
+      handleSelectDistrict(selectedDistrict, column, nextOrder);
+    }
+  };
+
+  const renderSortIcon = (column: string) => {
+    if (sortBy !== column) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-colors" />;
+    }
+    return sortOrder === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-sky-400" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-sky-400" />
+    );
   };
 
   // Search filtering
@@ -480,12 +511,60 @@ export const MapPage: React.FC<MapPageProps> = ({ onOpenDossier }) => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-[#0B1120] text-slate-400 font-mono uppercase text-[10px] border-b border-slate-800 sticky top-0">
                   <tr>
-                    <th className="py-3 px-4">Priority</th>
-                    <th className="py-3 px-4">Rec ID / Project</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">MP Name</th>
-                    <th className="py-3 px-4">Sanction / Disbursed</th>
-                    <th className="py-3 px-4">Turnaround</th>
+                    <th
+                      onClick={() => handleSort('priority')}
+                      className="py-3 px-4 cursor-pointer hover:text-white transition-colors group select-none"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <span>Priority</span>
+                        {renderSortIcon('priority')}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('work_rec_id')}
+                      className="py-3 px-4 cursor-pointer hover:text-white transition-colors group select-none"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <span>Rec ID / Project</span>
+                        {renderSortIcon('work_rec_id')}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('category')}
+                      className="py-3 px-4 cursor-pointer hover:text-white transition-colors group select-none"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <span>Category</span>
+                        {renderSortIcon('category')}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('mp_name')}
+                      className="py-3 px-4 cursor-pointer hover:text-white transition-colors group select-none"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <span>MP Name</span>
+                        {renderSortIcon('mp_name')}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('sanction_amount')}
+                      className="py-3 px-4 cursor-pointer hover:text-white transition-colors group select-none"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <span>Sanction / Disbursed</span>
+                        {renderSortIcon('sanction_amount')}
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('days_rec_to_sanction')}
+                      className="py-3 px-4 cursor-pointer hover:text-white transition-colors group select-none"
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <span>Turnaround</span>
+                        {renderSortIcon('days_rec_to_sanction')}
+                      </div>
+                    </th>
                     <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
