@@ -47,6 +47,22 @@ class ApiClient {
     return response.json();
   }
 
+  async authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
+    };
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const fullUrl = url.startsWith('/api') ? url : `${API_BASE}${url}`;
+    return fetch(fullUrl, {
+      ...options,
+      headers,
+    });
+  }
+
   // Auth & Personas
   async getPersonas(): Promise<Record<string, UserProfile>> {
     return this.request<Record<string, UserProfile>>('/auth/personas');

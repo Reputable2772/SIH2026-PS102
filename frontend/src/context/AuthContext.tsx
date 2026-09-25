@@ -18,6 +18,7 @@ interface AuthContextType {
   personas: Record<string, UserProfile>;
   switchPersona: (personaId: string) => Promise<void>;
   switchDynamicPersona: (payload: DynamicPersonaPayload) => Promise<void>;
+  authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   loading: boolean;
 }
 
@@ -99,6 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         personas,
         switchPersona,
         switchDynamicPersona,
+        authFetch: (url: string, opts?: RequestInit) => api.authFetch(url, opts),
         loading,
       }}
     >

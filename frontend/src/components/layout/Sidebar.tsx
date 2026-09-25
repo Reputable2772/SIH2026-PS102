@@ -9,10 +9,27 @@ import {
   HeartHandshake,
   CheckCircle2,
   SlidersHorizontal,
+  CopyCheck,
+  Kanban,
+  ShieldCheck,
+  Sparkles,
+  MessageSquareCode,
 } from 'lucide-react';
 import clsx from 'clsx';
 
-export type NavTab = 'overview' | 'map' | 'detectors' | 'works' | 'entities' | 'citizen' | 'validation';
+export type NavTab =
+  | 'overview'
+  | 'map'
+  | 'detectors'
+  | 'duplicates'
+  | 'investigations'
+  | 'compliance'
+  | 'recommendations'
+  | 'analytics'
+  | 'works'
+  | 'entities'
+  | 'citizen'
+  | 'validation';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -34,6 +51,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       label: 'Geospatial Radar',
       icon: <MapPin className="w-4 h-4" />,
       badge: '36 States',
+    },
+    {
+      id: 'investigations',
+      label: 'Investigation Center',
+      icon: <Kanban className="w-4 h-4 text-purple-400" />,
+      badge: 'Kanban',
+    },
+    {
+      id: 'duplicates',
+      label: 'Ghost & Duplicate Hub',
+      icon: <CopyCheck className="w-4 h-4 text-rose-400" />,
+      badge: 'Pillar 4',
+    },
+    {
+      id: 'compliance',
+      label: 'Compliance Radar',
+      icon: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
+      badge: '15% SC',
+    },
+    {
+      id: 'recommendations',
+      label: 'AI Priority Recs',
+      icon: <Sparkles className="w-4 h-4 text-amber-400" />,
+      badge: 'Form 2B',
+    },
+    {
+      id: 'analytics',
+      label: 'Natural Analytics',
+      icon: <MessageSquareCode className="w-4 h-4 text-sky-400" />,
+      badge: 'NL AI',
     },
     {
       id: 'detectors',
@@ -68,13 +115,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   // RBAC Tab Gating
   const navItems = allNavItems.filter((item) => {
     if (role === 'CITIZEN') {
-      return ['overview', 'map', 'citizen'].includes(item.id);
+      return ['overview', 'map', 'compliance', 'analytics', 'citizen'].includes(item.id);
     }
     if (role === 'MP_USER') {
-      return ['overview', 'works', 'entities', 'citizen'].includes(item.id);
+      return ['overview', 'recommendations', 'compliance', 'works', 'entities', 'analytics', 'citizen'].includes(item.id);
     }
     if (role === 'DISTRICT_AUTHORITY' || role === 'STATE_NODAL_OFFICER') {
-      return ['overview', 'map', 'works', 'entities', 'detectors', 'citizen'].includes(item.id);
+      return [
+        'overview',
+        'map',
+        'investigations',
+        'duplicates',
+        'compliance',
+        'recommendations',
+        'works',
+        'entities',
+        'detectors',
+        'analytics',
+        'citizen',
+      ].includes(item.id);
     }
     return true; // CENTRAL_AUDITOR
   });
@@ -88,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
   return (
     <aside className="w-64 bg-[#0B1120] border-r border-slate-800/80 flex flex-col justify-between py-4 select-none shrink-0">
-      <div className="space-y-6">
+      <div className="space-y-4 flex-1 overflow-y-auto pr-1">
         <div className="px-5">
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider font-mono">
             Analytical Navigation

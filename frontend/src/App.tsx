@@ -11,6 +11,11 @@ import { WorksPage } from './pages/WorksPage';
 import { EntitiesPage } from './pages/EntitiesPage';
 import { CitizenPage } from './pages/CitizenPage';
 import { ValidationPage } from './pages/ValidationPage';
+import { DuplicatesPage } from './pages/DuplicatesPage';
+import { InvestigationPage } from './pages/InvestigationPage';
+import { CompliancePage } from './pages/CompliancePage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
+import { NaturalAnalyticsPage } from './pages/NaturalAnalyticsPage';
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<NavTab>('overview');
@@ -59,6 +64,11 @@ export function AppContent() {
             />
           )}
           {activeTab === 'map' && <MapPage onOpenDossier={handleOpenDossier} />}
+          {activeTab === 'investigations' && <InvestigationPage onOpenDossier={handleOpenDossier} />}
+          {activeTab === 'duplicates' && <DuplicatesPage onOpenDossier={handleOpenDossier} />}
+          {activeTab === 'compliance' && <CompliancePage onOpenDossier={handleOpenDossier} />}
+          {activeTab === 'recommendations' && <RecommendationsPage />}
+          {activeTab === 'analytics' && <NaturalAnalyticsPage onOpenDossier={handleOpenDossier} />}
           {activeTab === 'detectors' && <DetectorsPage />}
           {activeTab === 'works' && (
             <WorksPage

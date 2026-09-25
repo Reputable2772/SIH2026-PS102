@@ -146,13 +146,24 @@ def decode_access_token(token: str) -> Dict[str, Any]:
 def get_current_user(
     authorization: Optional[str] = Header(None),
     x_persona_id: Optional[str] = Header(None),
+    x_user_role: Optional[str] = Header(None),
 ) -> UserProfile:
     """
-    Resolves the current user either from direct X-Persona-Id header,
+    Resolves the current user either from direct X-Persona-Id header, X-User-Role header,
     JWT Authorization header (with dynamic profile decoding), or falls back to GUEST_CITIZEN.
     """
-    if x_persona_id and x_persona_id in DEMO_PERSONAS:
-        return DEMO_PERSONAS[x_persona_id]
+    if x_persona_id:
+        p_key = x_persona_id.lower().replace("-", "_")
+        if p_key in DEMO_PERSONAS:
+            return DEMO_PERSONAS[p_key]
+
+    if x_user_role:
+        r_key = x_user_role.lower().replace("-", "_")
+        if r_key in DEMO_PERSONAS:
+            return DEMO_PERSONAS[r_key]
+        for p in DEMO_PERSONAS.values():
+            if p.role.value.lower() == r_key:
+                return p
 
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
@@ -166,8 +177,10 @@ def get_current_user(
                 pass
 
         persona_id = payload.get("persona_id")
-        if persona_id and persona_id in DEMO_PERSONAS:
-            return DEMO_PERSONAS[persona_id]
+        if persona_id:
+            p_key = persona_id.lower().replace("-", "_")
+            if p_key in DEMO_PERSONAS:
+                return DEMO_PERSONAS[p_key]
 
     # Non-authenticated requests safely default to public guest citizen
     return GUEST_CITIZEN

@@ -9,13 +9,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import BASE_DIR, DEBUG
 from backend.routes.actions import router as actions_router
+from backend.routes.analytics import router as analytics_router
 from backend.routes.auth import router as auth_router
+from backend.routes.compliance import router as compliance_router
 from backend.routes.detectors import router as detectors_router
 from backend.routes.districts import router as districts_router
 from backend.routes.dossier import router as dossier_router
+from backend.routes.duplicates import router as duplicates_router
+from backend.routes.investigations import router as investigations_router
 from backend.routes.map import router as map_router
 from backend.routes.mps import router as mps_router
 from backend.routes.overview import router as overview_router
+from backend.routes.recommendations import router as recommendations_router
 from backend.routes.vendors import router as vendors_router
 from backend.routes.works import router as works_router
 from backend.services.data_service import DataService
@@ -58,6 +63,11 @@ app.include_router(works_router, prefix="/api")
 app.include_router(dossier_router, prefix="/api")
 app.include_router(detectors_router, prefix="/api")
 app.include_router(actions_router, prefix="/api")
+app.include_router(duplicates_router, prefix="/api")
+app.include_router(investigations_router, prefix="/api")
+app.include_router(compliance_router, prefix="/api")
+app.include_router(recommendations_router, prefix="/api")
+app.include_router(analytics_router, prefix="/api")
 
 
 @app.get("/api/health")
