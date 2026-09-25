@@ -14,6 +14,7 @@ import base64
 import glob
 import json
 import os
+import sys
 import time
 
 import pandas as pd
@@ -65,85 +66,104 @@ DATASETS = {
 HOUSES = {"lok_sabha": 2, "rajya_sabha": 1}
 
 
-def get_states():
+def post_with_retry(url, json_payload=None, retries=3, timeout=30, backoff_factor=1.0, desc="request"):
+    """
+    Execute a POST request with exponential backoff retries.
+    If all retries fail, raises RuntimeError so the caller can log the error and continue.
+    """
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            res = SESSION.post(url, json=json_payload if json_payload is not None else {}, timeout=timeout)
+            status_code = getattr(res, "status_code", None)
+            if isinstance(status_code, int) and status_code != 200:
+                raise RuntimeError(f"HTTP {status_code}: {getattr(res, 'text', '')[:200]}")
+            return res.json()
+        except Exception as e:
+            last_err = e
+            if attempt < retries:
+                time.sleep(backoff_factor * (1.5**attempt))
+                continue
+    raise RuntimeError(f"Failed {desc} to {url} after {retries + 1} attempts: {last_err}") from last_err
+
+
+def get_states(retries=3):
     url = f"{BASE_URL}/rest/PreLoginDashboardData/getStateData"
-    try:
-        return SESSION.post(url, json={}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(url, json_payload={}, retries=retries, timeout=25, desc="getStateData")
+    return data if isinstance(data, list) else []
 
 
-def get_districts_for_state(state_id):
+def get_districts_for_state(state_id, retries=3):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getDistrictByState"
-    try:
-        return SESSION.post(url, json={"stateId": state_id}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(url, json_payload={"stateId": state_id}, retries=retries, timeout=25, desc=f"getDistrictByState({state_id})")
+    return data if isinstance(data, list) else []
 
 
-def get_tenures(house_name="lok_sabha"):
+def get_tenures(house_name="lok_sabha", retries=3):
     house_code = HOUSES[house_name]
     url = f"{BASE_URL}/rest/PreLoginDashboardData/getTenureData"
-    try:
-        return SESSION.post(url, json={"uname": f"0,0,0,{house_code}"}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(url, json_payload={"uname": f"0,0,0,{house_code}"}, retries=retries, timeout=25, desc=f"getTenureData({house_name})")
+    return data if isinstance(data, list) else []
 
 
-def get_blocks_for_district(district_id):
+def get_blocks_for_district(district_id, retries=3):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getBlockByDistrict"
-    try:
-        return SESSION.post(url, json={"districtId": district_id}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(url, json_payload={"districtId": district_id}, retries=retries, timeout=25, desc=f"getBlockByDistrict({district_id})")
+    return data if isinstance(data, list) else []
 
 
-def get_villages_for_block(block_id):
+def get_villages_for_block(block_id, retries=3):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getVillageByBlock"
-    try:
-        return SESSION.post(url, json={"blockId": block_id}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(url, json_payload={"blockId": block_id}, retries=retries, timeout=25, desc=f"getVillageByBlock({block_id})")
+    return data if isinstance(data, list) else []
 
 
-def get_cities_for_district(district_id):
+def get_cities_for_district(district_id, retries=3):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getCityByDistrict"
-    try:
-        return SESSION.post(url, json={"districtId": district_id}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(url, json_payload={"districtId": district_id}, retries=retries, timeout=25, desc=f"getCityByDistrict({district_id})")
+    return data if isinstance(data, list) else []
 
 
-def get_wards_for_city(city_id):
+def get_wards_for_city(city_id, retries=3):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getWardByCity"
-    try:
-        return SESSION.post(url, json={"cityId": city_id}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(url, json_payload={"cityId": city_id}, retries=retries, timeout=25, desc=f"getWardByCity({city_id})")
+    return data if isinstance(data, list) else []
 
 
-def get_attach_ids(work_id, flag=3):
+def get_attach_ids(work_id, flag=3, retries=3):
     url = f"{BASE_URL}/rest/PreLoginDashboardData/getAttachIdsbyFlag"
-    try:
-        return SESSION.post(url, json={"json": {"FLAG": flag, "WORK_ID": work_id}}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(
+        url,
+        json_payload={"json": {"FLAG": flag, "WORK_ID": work_id}},
+        retries=retries,
+        timeout=25,
+        desc=f"getAttachIdsbyFlag(WORK_ID={work_id})",
+    )
+    return data if isinstance(data, list) else []
 
 
-def get_attachment_by_id(attach_id):
+def get_attachment_by_id(attach_id, retries=3):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getAttachmentById"
-    try:
-        return SESSION.post(url, json={"id": str(attach_id)}, timeout=30).json()
-    except Exception:
-        return []
+    data = post_with_retry(
+        url,
+        json_payload={"id": str(attach_id)},
+        retries=retries,
+        timeout=35,
+        desc=f"getAttachmentById(ATTACH_ID={attach_id})",
+    )
+    return data if isinstance(data, list) else []
 
 
-def get_review_details(work_id):
+def get_review_details(work_id, retries=3):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getReviewDetailsByWork"
-    try:
-        return SESSION.post(url, json={"json": {"WORK_ID": work_id}}, timeout=20).json()
-    except Exception:
-        return []
+    data = post_with_retry(
+        url,
+        json_payload={"json": {"WORK_ID": work_id}},
+        retries=retries,
+        timeout=25,
+        desc=f"getReviewDetailsByWork(WORK_ID={work_id})",
+    )
+    return data if isinstance(data, list) else []
 
 
 def _save_dataframe(df, out_file, output_format):
@@ -257,7 +277,11 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
     os.makedirs(out_dir, exist_ok=True)
     print("\n[*] Scraping Master Geographic & Administrative References...")
 
-    states = get_states()
+    try:
+        states = get_states()
+    except Exception as e:
+        print(f"  [!] ERROR: Failed fetching master states after retries: {e}", file=sys.stderr)
+        states = []
     states_file = os.path.join(out_dir, f"master_states.{output_format}")
     df_states = pd.DataFrame(states)
     _save_dataframe(df_states, states_file, output_format)
@@ -266,11 +290,14 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
     print("  Harvesting all districts across 36 States/UTs...")
     all_districts = []
     for s in states:
-        dists = get_districts_for_state(s["STATE_ID"])
-        for d in dists:
-            d["STATE_ID"] = s["STATE_ID"]
-            d["STATE_NAME"] = s["STATE_NAME"]
-            all_districts.append(d)
+        try:
+            dists = get_districts_for_state(s["STATE_ID"])
+            for d in dists:
+                d["STATE_ID"] = s["STATE_ID"]
+                d["STATE_NAME"] = s["STATE_NAME"]
+                all_districts.append(d)
+        except Exception as e:
+            print(f"  [!] ERROR fetching districts for state {s.get('STATE_NAME', s.get('STATE_ID'))}: {e}", file=sys.stderr)
         time.sleep(0.1)
 
     dist_file = os.path.join(out_dir, f"master_districts.{output_format}")
@@ -285,22 +312,35 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
             d_id = d.get("DISTRICT_ID")
             if not d_id:
                 continue
-            blocks = get_blocks_for_district(d_id)
-            for b in blocks:
-                b["DISTRICT_ID"] = d_id
-                all_blocks.append(b)
-                vills = get_villages_for_block(b.get("BLOCK_ID"))
-                for v in vills:
-                    v["BLOCK_ID"] = b.get("BLOCK_ID")
-                    all_villages.append(v)
-            cities = get_cities_for_district(d_id)
-            for c in cities:
-                c["DISTRICT_ID"] = d_id
-                all_cities.append(c)
-                wards = get_wards_for_city(c.get("CITY_ID"))
-                for w in wards:
-                    w["CITY_ID"] = c.get("CITY_ID")
-                    all_wards.append(w)
+            try:
+                blocks = get_blocks_for_district(d_id)
+                for b in blocks:
+                    b["DISTRICT_ID"] = d_id
+                    all_blocks.append(b)
+                    try:
+                        vills = get_villages_for_block(b.get("BLOCK_ID"))
+                        for v in vills:
+                            v["BLOCK_ID"] = b.get("BLOCK_ID")
+                            all_villages.append(v)
+                    except Exception as e:
+                        print(f"  [!] ERROR fetching villages for block {b.get('BLOCK_ID')}: {e}", file=sys.stderr)
+            except Exception as e:
+                print(f"  [!] ERROR fetching blocks for district {d_id}: {e}", file=sys.stderr)
+
+            try:
+                cities = get_cities_for_district(d_id)
+                for c in cities:
+                    c["DISTRICT_ID"] = d_id
+                    all_cities.append(c)
+                    try:
+                        wards = get_wards_for_city(c.get("CITY_ID"))
+                        for w in wards:
+                            w["CITY_ID"] = c.get("CITY_ID")
+                            all_wards.append(w)
+                    except Exception as e:
+                        print(f"  [!] ERROR fetching wards for city {c.get('CITY_ID')}: {e}", file=sys.stderr)
+            except Exception as e:
+                print(f"  [!] ERROR fetching cities for district {d_id}: {e}", file=sys.stderr)
             time.sleep(0.05)
 
         for name, data_list in [("blocks", all_blocks), ("villages", all_villages), ("cities", all_cities), ("wards", all_wards)]:
@@ -312,10 +352,13 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
 
     tenures = []
     for h in HOUSES.keys():
-        t_list = get_tenures(h)
-        for t in t_list:
-            t["HOUSE"] = h
-            tenures.append(t)
+        try:
+            t_list = get_tenures(h)
+            for t in t_list:
+                t["HOUSE"] = h
+                tenures.append(t)
+        except Exception as e:
+            print(f"  [!] ERROR fetching tenures for house {h}: {e}", file=sys.stderr)
     tenure_file = os.path.join(out_dir, f"master_tenures.{output_format}")
     df_tenures = pd.DataFrame(tenures)
     _save_dataframe(df_tenures, tenure_file, output_format)
@@ -323,13 +366,13 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
 
     try:
         url = f"{BASE_URL}/rest/PreLoginDashboardData/getTotalTilesData"
-        totals = SESSION.post(url, json={"uname": "0,0,0,2"}, timeout=20).json()
+        totals = post_with_retry(url, json_payload={"uname": "0,0,0,2"}, retries=3, timeout=20, desc="getTotalTilesData")
         totals_file = os.path.join(out_dir, "scheme_cumulative_totals.json")
         with open(totals_file, "w", encoding="utf-8") as f:
             json.dump(totals, f, indent=2, ensure_ascii=False)
         print(f"[✓] Saved Scheme Cumulative Totals to: {totals_file}")
     except Exception as e:
-        print(f"  [!] Failed fetching cumulative totals: {e}")
+        print(f"  [!] ERROR fetching cumulative totals: {e}", file=sys.stderr)
 
 
 def scrape_official_documents(out_dir="data"):
@@ -339,9 +382,13 @@ def scrape_official_documents(out_dir="data"):
 
     url = f"{BASE_URL}/rest/PreLoginDashboardData/get_fileNames"
     try:
-        files = SESSION.post(url, json={"content": "ENGLISH"}, timeout=20).json()
+        files = post_with_retry(url, json_payload={"content": "ENGLISH"}, retries=3, timeout=20, desc="get_fileNames")
     except Exception as e:
-        print(f"  [!] Error fetching document manifest: {e}")
+        print(f"  [!] ERROR fetching document manifest: {e}", file=sys.stderr)
+        return
+
+    if not isinstance(files, list):
+        print(f"  [!] ERROR: Expected list of file names, got {type(files)}", file=sys.stderr)
         return
 
     for filename in files:
@@ -351,16 +398,37 @@ def scrape_official_documents(out_dir="data"):
         dest = os.path.abspath(os.path.join(doc_dir, safe_filename))
         if not dest.startswith(os.path.abspath(doc_dir)):
             continue
+        if os.path.exists(dest) and os.path.getsize(dest) > 0:
+            continue
+
         dl_url = f"{BASE_URL}/rest/PreLoginDashboardData/getFileData"
-        try:
-            res = SESSION.post(dl_url, json={"json": {"content": "ENGLISH", "name": filename}}, timeout=30).json()
-            if res and "FileUrl" in res:
-                file_bytes = base64.b64decode(res["FileUrl"])
-                with open(dest, "wb") as f:
-                    f.write(file_bytes)
-                print(f"  [✓] Downloaded: {safe_filename}")
-        except Exception as e:
-            print(f"  [!] Failed downloading {safe_filename}: {e}")
+        downloaded = False
+        last_err = None
+        for attempt in range(3):
+            try:
+                res = post_with_retry(
+                    dl_url,
+                    json_payload={"json": {"content": "ENGLISH", "name": filename}},
+                    retries=0,
+                    timeout=30,
+                    desc=f"getFileData({filename})",
+                )
+                if res and isinstance(res, dict) and "FileUrl" in res:
+                    file_bytes = base64.b64decode(res["FileUrl"])
+                    if file_bytes:
+                        with open(dest, "wb") as f:
+                            f.write(file_bytes)
+                        print(f"  [✓] Downloaded: {safe_filename}")
+                        downloaded = True
+                        break
+                raise RuntimeError(f"Invalid file response or missing FileUrl for {filename}")
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(1.5**attempt)
+                    continue
+        if not downloaded:
+            print(f"  [!] ERROR downloading {safe_filename}: {last_err}", file=sys.stderr)
 
 
 def scrape_reviews(out_dir, output_format):
@@ -379,10 +447,17 @@ def scrape_reviews(out_dir, output_format):
         for i, wid in enumerate(work_ids):
             if i > 0 and i % 100 == 0:
                 print(f"  Processed {i}/{len(work_ids)} works for reviews...")
-            reviews = get_review_details(wid)
-            for r in reviews:
-                r["WORK_ID"] = wid
-                all_reviews.append(r)
+            try:
+                reviews = get_review_details(wid, retries=2)
+                if isinstance(reviews, list):
+                    for r in reviews:
+                        if isinstance(r, dict):
+                            r["WORK_ID"] = wid
+                            all_reviews.append(r)
+            except Exception as e:
+                print(f"  [!] ERROR fetching reviews for WORK_ID {wid}: {e}", file=sys.stderr)
+                with open(os.path.join(out_dir, "failed_reviews.txt"), "a") as err_log:
+                    err_log.write(f"Failed WORK_ID: {wid}, Error: {e}\n")
             time.sleep(0.05)
 
     if all_reviews:
@@ -398,6 +473,7 @@ def scrape_attachments(out_dir):
     print(f"\n[*] Scraping Attachments (Photos/PDFs) for completed works in {out_dir}...")
     completed_files = glob.glob(os.path.join(out_dir, "*completed.csv"))
     if not completed_files:
+        print("  [!] No completed datasets found. Run extraction for 'completed' first.")
         return
 
     attach_dir = os.path.join(out_dir, "attachments")
@@ -408,49 +484,85 @@ def scrape_attachments(out_dir):
         df = pd.read_csv(fpath)
         if "WORK_ID" not in df.columns:
             continue
-        work_ids = df["WORK_ID"].dropna().unique()
+        if "FILE_STATUS" in df.columns:
+            has_files = df[df["FILE_STATUS"].isin([True, "True", "true", 1, "1"]) | df["ATTACH_ID"].notna()]
+            work_ids = has_files["WORK_ID"].dropna().unique()
+        else:
+            work_ids = df["WORK_ID"].dropna().unique()
 
         for i, wid in enumerate(work_ids):
             if i > 0 and i % 50 == 0:
                 print(f"  Processed {i}/{len(work_ids)} works for attachments...")
-            manifest = get_attach_ids(wid, flag=3)
+            try:
+                manifest = get_attach_ids(wid, flag=3, retries=2)
+            except Exception as e:
+                print(f"  [!] ERROR fetching attachment manifest for WORK_ID {wid}: {e}", file=sys.stderr)
+                with open(os.path.join(out_dir, "failed_attachments.txt"), "a") as err_log:
+                    err_log.write(f"Failed manifest WORK_ID: {wid}, Error: {e}\n")
+                continue
+
+            if not isinstance(manifest, list):
+                continue
             for m in manifest:
+                if not isinstance(m, dict):
+                    continue
                 fnames = m.get("FILE_NAME", [])
                 aids = m.get("ATTACH_ID", [])
-                if isinstance(fnames, str):
+                if isinstance(fnames, (str, int, float)):
                     fnames = [fnames]
-                if isinstance(aids, str):
+                elif not isinstance(fnames, list):
+                    fnames = list(fnames) if fnames else []
+                if isinstance(aids, (str, int, float)):
                     aids = [aids]
+                elif not isinstance(aids, list):
+                    aids = list(aids) if aids else []
                 for fname, aid in zip(fnames, aids):
                     safe_fname = os.path.basename(str(fname).strip())
-                    if not safe_fname or safe_fname in {".", ".."}:
+                    if not safe_fname or safe_fname in {".", ".."} or safe_fname.upper() in {"N/A", "NA", "NONE", "NULL"}:
                         continue
                     work_folder = os.path.join(attach_dir, str(wid))
                     os.makedirs(work_folder, exist_ok=True)
                     dest = os.path.abspath(os.path.join(work_folder, safe_fname))
                     if not dest.startswith(os.path.abspath(work_folder)):
                         continue
-                    if os.path.exists(dest):
+                    if os.path.exists(dest) and os.path.getsize(dest) > 0:
                         continue
 
+                    download_success = False
+                    last_download_err = None
                     for attempt in range(3):
-                        res = get_attachment_by_id(aid)
-                        if res and isinstance(res, list):
+                        try:
+                            res = get_attachment_by_id(aid, retries=0)
+                            if not res or not isinstance(res, list):
+                                raise RuntimeError(f"Invalid attachment payload received: {res}")
+                            found_content = False
                             for r in res:
+                                if not isinstance(r, dict):
+                                    continue
                                 url_b64 = r.get("URL")
-                                if url_b64:
+                                if url_b64 and str(url_b64).strip().upper() not in {"N/A", "NA", "NONE"}:
                                     try:
                                         file_bytes = base64.b64decode(url_b64)
+                                    except Exception as b64_err:
+                                        raise ValueError(f"Base64 decoding failed for ATTACH_ID {aid}: {b64_err}") from b64_err
+                                    if file_bytes:
                                         with open(dest, "wb") as f:
                                             f.write(file_bytes)
                                         count += 1
-                                    except Exception:
-                                        pass
+                                        found_content = True
+                                        download_success = True
+                            if not found_content:
+                                raise RuntimeError(f"No valid file URL content found in payload for ATTACH_ID {aid}")
                             break
-                        time.sleep(1.5**attempt)
-                    else:
+                        except Exception as dl_err:
+                            last_download_err = dl_err
+                            if attempt < 2:
+                                time.sleep(1.5**attempt)
+                                continue
+                    if not download_success:
+                        print(f"  [!] ERROR downloading ATTACH_ID {aid} (WORK_ID {wid}): {last_download_err}", file=sys.stderr)
                         with open(os.path.join(out_dir, "failed_attachments.txt"), "a") as err_log:
-                            err_log.write(f"Failed WORK_ID: {wid}, ATTACH_ID: {aid}\n")
+                            err_log.write(f"Failed WORK_ID: {wid}, ATTACH_ID: {aid}, Error: {last_download_err}\n")
             time.sleep(0.05)
     print(f"[✓] Downloaded {count} new attachment files.")
 
