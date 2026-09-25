@@ -11,10 +11,10 @@ Extracts all data from the MPLADS portal (Lok Sabha & Rajya Sabha):
 
 import argparse
 import base64
+import glob
 import json
 import os
 import time
-import glob
 
 import pandas as pd
 import requests
@@ -64,56 +64,95 @@ DATASETS = {
 
 HOUSES = {"lok_sabha": 2, "rajya_sabha": 1}
 
+
 def get_states():
     url = f"{BASE_URL}/rest/PreLoginDashboardData/getStateData"
-    try: return SESSION.post(url, json={}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_districts_for_state(state_id):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getDistrictByState"
-    try: return SESSION.post(url, json={"stateId": state_id}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"stateId": state_id}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_tenures(house_name="lok_sabha"):
     house_code = HOUSES[house_name]
     url = f"{BASE_URL}/rest/PreLoginDashboardData/getTenureData"
-    try: return SESSION.post(url, json={"uname": f"0,0,0,{house_code}"}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"uname": f"0,0,0,{house_code}"}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_blocks_for_district(district_id):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getBlockByDistrict"
-    try: return SESSION.post(url, json={"districtId": district_id}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"districtId": district_id}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_villages_for_block(block_id):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getVillageByBlock"
-    try: return SESSION.post(url, json={"blockId": block_id}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"blockId": block_id}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_cities_for_district(district_id):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getCityByDistrict"
-    try: return SESSION.post(url, json={"districtId": district_id}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"districtId": district_id}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_wards_for_city(city_id):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getWardByCity"
-    try: return SESSION.post(url, json={"cityId": city_id}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"cityId": city_id}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_attach_ids(work_id, flag=3):
     url = f"{BASE_URL}/rest/PreLoginDashboardData/getAttachIdsbyFlag"
-    try: return SESSION.post(url, json={"json": {"FLAG": flag, "WORK_ID": work_id}}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"json": {"FLAG": flag, "WORK_ID": work_id}}, timeout=20).json()
+    except Exception:
+        return []
+
 
 def get_attachment_by_id(attach_id):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getAttachmentById"
-    try: return SESSION.post(url, json={"id": str(attach_id)}, timeout=30).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"id": str(attach_id)}, timeout=30).json()
+    except Exception:
+        return []
+
 
 def get_review_details(work_id):
     url = f"{BASE_URL}/rest/PreLoginCitizenWorkRcmdRest/getReviewDetailsByWork"
-    try: return SESSION.post(url, json={"json": {"WORK_ID": work_id}}, timeout=20).json()
-    except Exception: return []
+    try:
+        return SESSION.post(url, json={"json": {"WORK_ID": work_id}}, timeout=20).json()
+    except Exception:
+        return []
+
+
+def _save_dataframe(df, out_file, output_format):
+    """Save DataFrame to file in the specified format."""
+    if output_format.lower() == "csv":
+        df.to_csv(out_file, index=False, encoding="utf-8")
+    else:
+        df.to_json(out_file, orient="records", indent=2, force_ascii=False)
+
 
 def fetch_dataset_records(combo_str, dataset_type, retries=3, backoff_factor=1.5):
     meta = DATASETS[dataset_type]
@@ -132,7 +171,8 @@ def fetch_dataset_records(combo_str, dataset_type, retries=3, backoff_factor=1.5
             text = res.content.decode("utf-8", errors="replace")
             data = json.loads(text)
             raw_list = data.get(meta["resp_key"])
-            if not raw_list: return []
+            if not raw_list:
+                return []
             records = json.loads(raw_list) if isinstance(raw_list, str) else raw_list
             clean_records = [r for r in records if isinstance(r, dict) and not (len(r) == 1 and "Total_Amt" in r)]
             return clean_records
@@ -144,6 +184,17 @@ def fetch_dataset_records(combo_str, dataset_type, retries=3, backoff_factor=1.5
             return None
     return None
 
+
+def _fetch_allinda_dataset(combo, dataset_name, house_name, all_records):
+    """Fetch an all-India dataset and append to all_records."""
+    print(f"  Fetching All-India directly via combo '{combo}'... ", end="", flush=True)
+    res = fetch_dataset_records(combo, dataset_name)
+    if res is None:
+        raise RuntimeError(f"Failed fetching all-India {dataset_name} for {house_name} from e-SAKSHI.")
+    all_records.extend(res)
+    print(f"{len(res)} records")
+
+
 def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=None, output_format="csv", out_dir="data"):
     os.makedirs(out_dir, exist_ok=True)
     house_code = HOUSES[house_name]
@@ -152,27 +203,12 @@ def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=No
     print(f"\n[*] Extracting: Dataset='{dataset_name}' ({meta['desc']}) | House='{house_name}'")
     all_records = []
 
-    if dataset_name == "allocations" and state_id is None and house_name == "lok_sabha":
+    if dataset_name == "allocations" and state_id is None:
         combo = f"0,0,0,{house_code}"
-        print(f"  Fetching All-India directly via combo '{combo}'... ", end="", flush=True)
-        res = fetch_dataset_records(combo, dataset_name)
-        if res is None: raise RuntimeError(f"Failed fetching all-India allocations for {house_name} from e-SAKSHI.")
-        all_records = res
-        print(f"{len(all_records)} records")
-    elif dataset_name == "allocations" and state_id is None and house_name == "rajya_sabha":
-        combo = f"0,0,0,{house_code}"
-        print(f"  Fetching All-India Rajya Sabha quotas via combo '{combo}'... ", end="", flush=True)
-        res = fetch_dataset_records(combo, dataset_name)
-        if res is None: raise RuntimeError(f"Failed fetching all-India allocations for {house_name} from e-SAKSHI.")
-        all_records = res
-        print(f"{len(all_records)} records")
+        _fetch_allinda_dataset(combo, dataset_name, house_name, all_records)
     elif dataset_name == "calamity" and state_id is None and house_name == "lok_sabha":
         combo = f"0,0,0,{house_code}"
-        print(f"  Fetching All-India calamity quota transfers via combo '{combo}'... ", end="", flush=True)
-        res = fetch_dataset_records(combo, dataset_name)
-        if res is None: raise RuntimeError(f"Failed fetching calamity transfers for {house_name} from e-SAKSHI.")
-        all_records = res
-        print(f"{len(all_records)} records")
+        _fetch_allinda_dataset(combo, dataset_name, house_name, all_records)
     else:
         states = [{"STATE_ID": state_id, "STATE_NAME": f"State_{state_id}"}] if state_id is not None else get_states()
         print(f"  Partitioning across {len(states)} States/UTs...")
@@ -192,7 +228,11 @@ def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=No
                 consecutive_failures += 1
                 print("FAILED")
                 if consecutive_failures >= 5:
-                    raise RuntimeError(f"Circuit breaker tripped: {consecutive_failures} consecutive requests failed while scraping dataset '{dataset_name}' ({house_name}). The e-SAKSHI portal may be down or rate-limiting.")
+                    raise RuntimeError(
+                        f"Circuit breaker tripped: {consecutive_failures} consecutive requests failed while "
+                        f"scraping dataset '{dataset_name}' ({house_name}). The e-SAKSHI portal may be down "
+                        "or rate-limiting."
+                    )
             else:
                 consecutive_failures = 0
                 print(f"{len(records)} records")
@@ -200,15 +240,18 @@ def scrape_dataset(dataset_name="completed", house_name="lok_sabha", state_id=No
             time.sleep(0.2)
 
         if total_requests > 0 and (failed_requests / total_requests) > 0.5:
-            raise RuntimeError(f"Scraping aborted: High failure rate ({failed_requests}/{total_requests} requests failed, {failed_requests / total_requests:.1%}) for dataset '{dataset_name}' ({house_name}).")
+            raise RuntimeError(
+                f"Scraping aborted: High failure rate ({failed_requests}/{total_requests} requests failed, "
+                f"{failed_requests / total_requests:.1%}) for dataset '{dataset_name}' ({house_name})."
+            )
 
     out_file = os.path.join(out_dir, f"mplads_{house_name}_{dataset_name}.{output_format}")
     df = pd.DataFrame(all_records)
-    if output_format.lower() == "csv": df.to_csv(out_file, index=False, encoding="utf-8")
-    else: df.to_json(out_file, orient="records", indent=2, force_ascii=False)
+    _save_dataframe(df, out_file, output_format)
 
     print(f"[✓] Saved {len(all_records)} records to: {out_file}")
     return out_file
+
 
 def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo=False):
     os.makedirs(out_dir, exist_ok=True)
@@ -217,8 +260,7 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
     states = get_states()
     states_file = os.path.join(out_dir, f"master_states.{output_format}")
     df_states = pd.DataFrame(states)
-    if output_format.lower() == "csv": df_states.to_csv(states_file, index=False, encoding="utf-8")
-    else: df_states.to_json(states_file, orient="records", indent=2, force_ascii=False)
+    _save_dataframe(df_states, states_file, output_format)
     print(f"[✓] Saved {len(states)} States/UTs to: {states_file}")
 
     print("  Harvesting all districts across 36 States/UTs...")
@@ -233,8 +275,7 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
 
     dist_file = os.path.join(out_dir, f"master_districts.{output_format}")
     df_dists = pd.DataFrame(all_districts)
-    if output_format.lower() == "csv": df_dists.to_csv(dist_file, index=False, encoding="utf-8")
-    else: df_dists.to_json(dist_file, orient="records", indent=2, force_ascii=False)
+    _save_dataframe(df_dists, dist_file, output_format)
     print(f"[✓] Saved {len(all_districts)} Districts to: {dist_file}")
 
     if deep_geo:
@@ -242,7 +283,8 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
         all_blocks, all_villages, all_cities, all_wards = [], [], [], []
         for d in all_districts:
             d_id = d.get("DISTRICT_ID")
-            if not d_id: continue
+            if not d_id:
+                continue
             blocks = get_blocks_for_district(d_id)
             for b in blocks:
                 b["DISTRICT_ID"] = d_id
@@ -260,13 +302,12 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
                     w["CITY_ID"] = c.get("CITY_ID")
                     all_wards.append(w)
             time.sleep(0.05)
-        
+
         for name, data_list in [("blocks", all_blocks), ("villages", all_villages), ("cities", all_cities), ("wards", all_wards)]:
             if data_list:
                 fp = os.path.join(out_dir, f"master_{name}.{output_format}")
                 df_deep = pd.DataFrame(data_list)
-                if output_format.lower() == "csv": df_deep.to_csv(fp, index=False, encoding="utf-8")
-                else: df_deep.to_json(fp, orient="records", indent=2, force_ascii=False)
+                _save_dataframe(df_deep, fp, output_format)
                 print(f"[✓] Saved {len(data_list)} {name.capitalize()} to: {fp}")
 
     tenures = []
@@ -277,8 +318,7 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
             tenures.append(t)
     tenure_file = os.path.join(out_dir, f"master_tenures.{output_format}")
     df_tenures = pd.DataFrame(tenures)
-    if output_format.lower() == "csv": df_tenures.to_csv(tenure_file, index=False, encoding="utf-8")
-    else: df_tenures.to_json(tenure_file, orient="records", indent=2, force_ascii=False)
+    _save_dataframe(df_tenures, tenure_file, output_format)
     print(f"[✓] Saved Tenures to: {tenure_file}")
 
     try:
@@ -291,31 +331,37 @@ def scrape_metadata_and_references(out_dir="data", output_format="csv", deep_geo
     except Exception as e:
         print(f"  [!] Failed fetching cumulative totals: {e}")
 
+
 def scrape_official_documents(out_dir="data"):
     doc_dir = os.path.join(out_dir, "official_documents")
     os.makedirs(doc_dir, exist_ok=True)
     print(f"\n[*] Downloading Official Policy Documents & Master Works List to '{doc_dir}'...")
 
     url = f"{BASE_URL}/rest/PreLoginDashboardData/get_fileNames"
-    try: files = SESSION.post(url, json={"content": "ENGLISH"}, timeout=20).json()
+    try:
+        files = SESSION.post(url, json={"content": "ENGLISH"}, timeout=20).json()
     except Exception as e:
         print(f"  [!] Error fetching document manifest: {e}")
         return
 
     for filename in files:
         safe_filename = os.path.basename(str(filename).strip())
-        if not safe_filename or safe_filename in {".", ".."}: continue
+        if not safe_filename or safe_filename in {".", ".."}:
+            continue
         dest = os.path.abspath(os.path.join(doc_dir, safe_filename))
-        if not dest.startswith(os.path.abspath(doc_dir)): continue
+        if not dest.startswith(os.path.abspath(doc_dir)):
+            continue
         dl_url = f"{BASE_URL}/rest/PreLoginDashboardData/getFileData"
         try:
             res = SESSION.post(dl_url, json={"json": {"content": "ENGLISH", "name": filename}}, timeout=30).json()
             if res and "FileUrl" in res:
                 file_bytes = base64.b64decode(res["FileUrl"])
-                with open(dest, "wb") as f: f.write(file_bytes)
+                with open(dest, "wb") as f:
+                    f.write(file_bytes)
                 print(f"  [✓] Downloaded: {safe_filename}")
         except Exception as e:
             print(f"  [!] Failed downloading {safe_filename}: {e}")
+
 
 def scrape_reviews(out_dir, output_format):
     print(f"\n[*] Scraping Citizen Reviews for completed works in {out_dir}...")
@@ -327,10 +373,12 @@ def scrape_reviews(out_dir, output_format):
     all_reviews = []
     for fpath in completed_files:
         df = pd.read_csv(fpath)
-        if "WORK_ID" not in df.columns: continue
+        if "WORK_ID" not in df.columns:
+            continue
         work_ids = df["WORK_ID"].dropna().unique()
         for i, wid in enumerate(work_ids):
-            if i > 0 and i % 100 == 0: print(f"  Processed {i}/{len(work_ids)} works for reviews...")
+            if i > 0 and i % 100 == 0:
+                print(f"  Processed {i}/{len(work_ids)} works for reviews...")
             reviews = get_review_details(wid)
             for r in reviews:
                 r["WORK_ID"] = wid
@@ -340,16 +388,17 @@ def scrape_reviews(out_dir, output_format):
     if all_reviews:
         out_file = os.path.join(out_dir, f"citizen_reviews.{output_format}")
         df_rev = pd.DataFrame(all_reviews)
-        if output_format.lower() == "csv": df_rev.to_csv(out_file, index=False, encoding="utf-8")
-        else: df_rev.to_json(out_file, orient="records", indent=2, force_ascii=False)
+        _save_dataframe(df_rev, out_file, output_format)
         print(f"[✓] Saved {len(all_reviews)} reviews to {out_file}")
     else:
         print("  [i] No reviews found.")
 
+
 def scrape_attachments(out_dir):
     print(f"\n[*] Scraping Attachments (Photos/PDFs) for completed works in {out_dir}...")
     completed_files = glob.glob(os.path.join(out_dir, "*completed.csv"))
-    if not completed_files: return
+    if not completed_files:
+        return
 
     attach_dir = os.path.join(out_dir, "attachments")
     os.makedirs(attach_dir, exist_ok=True)
@@ -357,25 +406,32 @@ def scrape_attachments(out_dir):
 
     for fpath in completed_files:
         df = pd.read_csv(fpath)
-        if "WORK_ID" not in df.columns: continue
+        if "WORK_ID" not in df.columns:
+            continue
         work_ids = df["WORK_ID"].dropna().unique()
 
         for i, wid in enumerate(work_ids):
-            if i > 0 and i % 50 == 0: print(f"  Processed {i}/{len(work_ids)} works for attachments...")
+            if i > 0 and i % 50 == 0:
+                print(f"  Processed {i}/{len(work_ids)} works for attachments...")
             manifest = get_attach_ids(wid, flag=3)
             for m in manifest:
                 fnames = m.get("FILE_NAME", [])
                 aids = m.get("ATTACH_ID", [])
-                if isinstance(fnames, str): fnames = [fnames]
-                if isinstance(aids, str): aids = [aids]
+                if isinstance(fnames, str):
+                    fnames = [fnames]
+                if isinstance(aids, str):
+                    aids = [aids]
                 for fname, aid in zip(fnames, aids):
                     safe_fname = os.path.basename(str(fname).strip())
-                    if not safe_fname or safe_fname in {".", ".."}: continue
+                    if not safe_fname or safe_fname in {".", ".."}:
+                        continue
                     work_folder = os.path.join(attach_dir, str(wid))
                     os.makedirs(work_folder, exist_ok=True)
                     dest = os.path.abspath(os.path.join(work_folder, safe_fname))
-                    if not dest.startswith(os.path.abspath(work_folder)): continue
-                    if os.path.exists(dest): continue
+                    if not dest.startswith(os.path.abspath(work_folder)):
+                        continue
+                    if os.path.exists(dest):
+                        continue
 
                     for attempt in range(3):
                         res = get_attachment_by_id(aid)
@@ -385,17 +441,19 @@ def scrape_attachments(out_dir):
                                 if url_b64:
                                     try:
                                         file_bytes = base64.b64decode(url_b64)
-                                        with open(dest, "wb") as f: f.write(file_bytes)
+                                        with open(dest, "wb") as f:
+                                            f.write(file_bytes)
                                         count += 1
-                                    except Exception: pass
+                                    except Exception:
+                                        pass
                             break
-                        import time
-                        time.sleep(1.5 ** attempt)
+                        time.sleep(1.5**attempt)
                     else:
                         with open(os.path.join(out_dir, "failed_attachments.txt"), "a") as err_log:
                             err_log.write(f"Failed WORK_ID: {wid}, ATTACH_ID: {aid}\n")
             time.sleep(0.05)
     print(f"[✓] Downloaded {count} new attachment files.")
+
 
 def scrape_all(state_id=None, output_format="csv", out_dir="data", skip_docs=False, deep_geo=False, fetch_reviews=False, fetch_attachments=False):
     start_time = time.time()
@@ -419,6 +477,7 @@ def scrape_all(state_id=None, output_format="csv", out_dir="data", skip_docs=Fal
 
     print(f"\n[✓] ALL EXTRACTIONS COMPLETED in {time.time() - start_time:.1f}s!")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MPLADS e-SAKSHI Comprehensive Dataset Harvester")
     parser.add_argument("--all", action="store_true", help="Download tabular datasets")
@@ -428,7 +487,7 @@ if __name__ == "__main__":
     parser.add_argument("--format", choices=["csv", "json"], default="csv")
     parser.add_argument("--out-dir", default="data")
     parser.add_argument("--skip-docs", action="store_true")
-    
+
     parser.add_argument("--deep-geo", action="store_true", help="Scrape Blocks, Villages, Cities, and Wards")
     parser.add_argument("--reviews", action="store_true", help="Scrape citizen reviews for completed works")
     parser.add_argument("--attachments", action="store_true", help="Download inspection photos and PDF reports")
@@ -445,13 +504,18 @@ if __name__ == "__main__":
         if args.house and args.house != "all":
             for ds_name in DATASETS.keys():
                 scrape_dataset(dataset_name=ds_name, house_name=args.house, state_id=args.state, output_format=args.format, out_dir=args.out_dir)
-            if revs: scrape_reviews(args.out_dir, args.format)
-            if atts: scrape_attachments(args.out_dir)
+            if revs:
+                scrape_reviews(args.out_dir, args.format)
+            if atts:
+                scrape_attachments(args.out_dir)
         else:
             scrape_all(state_id=args.state, output_format=args.format, out_dir=args.out_dir, skip_docs=args.skip_docs, deep_geo=deep, fetch_reviews=revs, fetch_attachments=atts)
     else:
         house = args.house if args.house and args.house != "all" else "lok_sabha"
         scrape_dataset(dataset_name=args.dataset, house_name=house, state_id=args.state, output_format=args.format, out_dir=args.out_dir)
-        if revs: scrape_reviews(args.out_dir, args.format)
-        if atts: scrape_attachments(args.out_dir)
-        if deep: scrape_metadata_and_references(args.out_dir, args.format, deep_geo=True)
+        if revs:
+            scrape_reviews(args.out_dir, args.format)
+        if atts:
+            scrape_attachments(args.out_dir)
+        if deep:
+            scrape_metadata_and_references(args.out_dir, args.format, deep_geo=True)

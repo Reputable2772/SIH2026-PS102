@@ -12,7 +12,7 @@ import pandas as pd
 
 from src.config import STATISTICS
 from src.engine.baselines import BaselineEngine
-from src.engine.detectors.base import safe_float, AnomalyCategory, BaseDetector, Finding
+from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding, safe_float
 
 
 class CostPeerOutlierDetector(BaseDetector):

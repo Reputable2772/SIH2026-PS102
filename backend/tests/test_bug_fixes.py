@@ -13,9 +13,10 @@ Tests cover:
 
 import pytest
 from fastapi.testclient import TestClient
+
 from backend.main import app
-from backend.services.data_service import DataService
 from backend.services.audit_service import AuditService
+from backend.services.data_service import DataService
 
 
 @pytest.fixture(scope="module")

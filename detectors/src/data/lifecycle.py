@@ -91,7 +91,7 @@ class WorkLifecycleReconstructor:
             exp_df["is_successful_disb"] = is_success & (~is_penny_drop)
             exp_df["is_in_progress_disb"] = is_in_progress
             exp_df["is_penny_drop_disb"] = is_success & is_penny_drop
-            
+
             if "VENDOR_ID" not in exp_df.columns:
                 exp_df["VENDOR_ID"] = None
 

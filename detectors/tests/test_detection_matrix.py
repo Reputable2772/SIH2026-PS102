@@ -393,3 +393,194 @@ def test_live_canonical_dataset_rows():
     findings = det.detect(sample_df, baseline_engine=be)
 
     assert isinstance(findings, list)
+
+
+# ---------------------------------------------------------------------------
+# 4. Remediation Verification Tests for Core Detector Issues
+# ---------------------------------------------------------------------------
+
+
+def test_remediation_fin_d5_no_zscore_explosion_on_fixed_tranche():
+    """Proves FIN-D5 does not explode to Z > 6000 on tiny variation in fixed-budget cohorts."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class FixedTrancheBaseline:
+        sample_size: int = 100
+        cost_median: float = 500000.0
+        cost_iqr: float = 1.0  # Artificial compression due to identical fixed tranches
+        cost_std: float = 5.0
+        cohort_key: tuple = ("DELHI", "Solar")
+
+    class MockEngine:
+        def get_peer_baseline(self, state, cat):
+            return FixedTrancheBaseline(), 1.0
+
+    # A work with a modest 1% (₹5,000) variation: should NOT be flagged as an outlier
+    minor_var_df = pd.DataFrame([{
+        "WORK_RECOMMENDATION_DTL_ID": "FIXED_01",
+        "STATE_NAME": "DELHI",
+        "WORK_CATEGORY": "Solar",
+        "SANCTION_AMOUNT": 505000.0,
+    }])
+    det = CostPeerOutlierDetector(z_threshold=2.5)
+    findings = det.detect(minor_var_df, MockEngine())
+    assert len(findings) == 0, "Minor 1% variation must not trigger outlier alert on fixed-tranche cohort"
+
+    # A genuine 300% outlier (₹20,00,000 vs ₹5,00,000 median) must be flagged
+    major_outlier_df = pd.DataFrame([{
+        "WORK_RECOMMENDATION_DTL_ID": "FIXED_02",
+        "STATE_NAME": "DELHI",
+        "WORK_CATEGORY": "Solar",
+        "SANCTION_AMOUNT": 2000000.0,
+    }])
+    major_findings = det.detect(major_outlier_df, MockEngine())
+    assert len(major_findings) == 1
+    assert major_findings[0].work_rec_id == "FIXED_02"
+
+
+def test_remediation_comp_d2_house_normalization_fallback():
+    """Proves COMP-D2 properly normalizes house names and applies fallback SLA to unmapped houses."""
+    df = pd.DataFrame([
+        # Lowercase and space in house name
+        {
+            "WORK_RECOMMENDATION_DTL_ID": "HOUSE_01",
+            "house": "lok sabha",
+            "days_sanction_to_completion": 400,  # > 365
+            "ACTUAL_END_DATE": pd.Timestamp("2025-06-01"),
+            "SANCTION_DATE": pd.Timestamp("2024-04-01"),
+        },
+        # Null house (fallback to 365 days)
+        {
+            "WORK_RECOMMENDATION_DTL_ID": "HOUSE_02",
+            "house": None,
+            "days_since_sanction": 500,  # > 365
+            "ACTUAL_END_DATE": pd.NaT,
+            "SANCTION_DATE": pd.Timestamp("2024-01-01"),
+        },
+        # Rajya Sabha tenure exception (540 days): 450 days should NOT breach
+        {
+            "WORK_RECOMMENDATION_DTL_ID": "HOUSE_03",
+            "house": "RAJYA_SABHA",
+            "days_since_sanction": 450,  # < 540
+            "ACTUAL_END_DATE": pd.NaT,
+            "SANCTION_DATE": pd.Timestamp("2024-01-01"),
+        },
+    ])
+    det = ExecutionDeadlineDetector(ls_sla=365, rs_sla=540)
+    findings = det.detect(df)
+    flagged_ids = {f.work_rec_id for f in findings}
+    assert "HOUSE_01" in flagged_ids, "Lok Sabha with space must be flagged when > 365d"
+    assert "HOUSE_02" in flagged_ids, "Null house must fallback to standard SLA and be flagged when > 365d"
+    assert "HOUSE_03" not in flagged_ids, "Rajya Sabha work at 450d must not breach 540d SLA"
+
+
+def test_remediation_agy_d11_placeholder_disallowed():
+    """Proves AGY-D11 ignores placeholder agency strings ('N/A', 'nan', 'NONE')."""
+    from src.engine.detectors.agency import IAOverloadDetector
+
+    records = []
+    # 15 delayed works with "N/A" as agency
+    for i in range(15):
+        records.append({
+            "WORK_RECOMMENDATION_DTL_ID": f"NA_{i}",
+            "ia_name": "N/A",
+            "IDA_NAME": f"DIST_{i}",
+            "days_since_sanction": 400,
+            "ACTUAL_END_DATE": pd.NaT,
+            "total_disbursed": 500000.0,
+        })
+    df = pd.DataFrame(records)
+    det = IAOverloadDetector(min_delayed_works=10, min_total_expenditure=5000000.0)
+    findings = det.detect(df)
+    assert len(findings) == 0, "'N/A' placeholder must not aggregate into an overloaded super-agency"
+
+
+def test_remediation_sim_d12_symmetric_emission():
+    """Proves SIM-D12 emits reciprocal findings for both works in a duplicate pair."""
+    from src.engine.cross_work.similarity import DuplicateWorkDetector
+
+    df = pd.DataFrame([
+        {
+            "WORK_RECOMMENDATION_DTL_ID": "DUP_A",
+            "STATE_NAME": "MAHARASHTRA",
+            "IDA_NAME": "PUNE",
+            "WORK_CATEGORY": "Water",
+            "WORK_DESCRIPTION": "Installation of deep borewell with submersible water pump at village square",
+            "SANCTION_AMOUNT": 800000.0,
+        },
+        {
+            "WORK_RECOMMENDATION_DTL_ID": "DUP_B",
+            "STATE_NAME": "MAHARASHTRA",
+            "IDA_NAME": "PUNE",
+            "WORK_CATEGORY": "Water",
+            "WORK_DESCRIPTION": "Installation of deep borewell with submersible water pump at village square sector 2",
+            "SANCTION_AMOUNT": 810000.0,
+        },
+    ])
+    det = DuplicateWorkDetector(similarity_threshold=0.75, cost_window_ratio=0.20)
+    findings = det.detect(df)
+    assert len(findings) == 2, "Duplicate detector must emit symmetric findings for both works"
+    rec_ids = {f.work_rec_id for f in findings}
+    assert rec_ids == {"DUP_A", "DUP_B"}
+    # Verify reciprocal cross-referencing
+    f_a = next(f for f in findings if f.work_rec_id == "DUP_A")
+    f_b = next(f for f in findings if f.work_rec_id == "DUP_B")
+    assert f_a.evidence["matched_work_rec_id"] == "DUP_B"
+    assert f_b.evidence["matched_work_rec_id"] == "DUP_A"
+
+
+def test_remediation_rec_d15_fdr_q_values():
+    """Proves REC-D15 computes Benjamini-Hochberg FDR q-values in findings evidence."""
+    from src.engine.cross_work.recurrence import EntityRecurrenceDetector
+    from src.engine.detectors.base import AnomalyCategory
+
+    works = pd.DataFrame([
+        {"WORK_RECOMMENDATION_DTL_ID": f"R_{i}", "ia_name": "RECURRING_PWD", "STATE_NAME": "UP"}
+        for i in range(5)
+    ])
+    priors = [
+        Finding(
+            finding_id=f"F_{i}",
+            work_id=f"R_{i}",
+            work_rec_id=f"R_{i}",
+            detector_code="COMP-D1",
+            detector_name="Turnaround",
+            category=AnomalyCategory.COMPLIANCE,
+            severity=0.8,
+            confidence=0.85,
+            evidence={},
+            explanation="",
+            next_review_action="",
+        )
+        for i in range(5)
+    ]
+    det = EntityRecurrenceDetector(min_anomalies=3)
+    findings = det.detect(works, priors)
+    assert len(findings) > 0
+    assert "fdr_q_value" in findings[0].evidence
+    assert 0.0 <= findings[0].evidence["fdr_q_value"] <= 1.0
+
+
+def test_remediation_concentration_sorted_by_exposure():
+    """Proves AGY-D13 and VND-D14 sort dominant entities' works by financial exposure descending."""
+    from src.engine.cross_work.concentration import AgencyConcentrationDetector
+
+    records = []
+    # Dominant IA has 16 works (>= 15 threshold) with distinct sanction amounts
+    for i in range(16):
+        records.append({
+            "WORK_RECOMMENDATION_DTL_ID": f"AGY_WORK_{i}",
+            "STATE_NAME": "KERALA",
+            "IDA_NAME": "KOCHI",
+            "ia_name": "MONOPOLY_KERALA_PWD",
+            "SANCTION_AMOUNT": float((i + 1) * 100000),  # 100k, 200k, ... 1.6M
+        })
+    df = pd.DataFrame(records)
+    det = AgencyConcentrationDetector(hhi_threshold=2500, share_threshold=0.40)
+    findings = det.detect(df)
+    # The first sampled finding should be the highest sanction amount (1,600,000)
+    assert len(findings) == 5  # Top 5 queue sample
+    assert findings[0].work_rec_id == "AGY_WORK_15"
+    assert findings[0].sanction_amount == 1600000.0
+

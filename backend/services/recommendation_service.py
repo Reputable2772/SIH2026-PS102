@@ -4,7 +4,6 @@ Synthesizes infrastructure gaps, citizen demand hotspots, and statutory quotas
 to recommend high-ROI community projects and generate official recommendation letters for MPs.
 """
 
-import random
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 

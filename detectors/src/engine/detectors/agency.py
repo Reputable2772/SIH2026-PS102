@@ -10,7 +10,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from src.engine.detectors.base import safe_float, AnomalyCategory, BaseDetector, Finding
+from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding, safe_float
 
 
 class IAOverloadDetector(BaseDetector):
@@ -24,7 +24,7 @@ class IAOverloadDetector(BaseDetector):
     def detect(self, df_works: pd.DataFrame, baseline_engine: Optional[object] = None) -> List[Finding]:
         if "ia_name" not in df_works.columns:
             return []
-        
+
         disallowed = {"", "N/A", "NA", "NAN", "NONE", "NULL", "NOT APPLICABLE", "OTHER", "UNKNOWN"}
         valid_ias = df_works[
             df_works["ia_name"].notna()

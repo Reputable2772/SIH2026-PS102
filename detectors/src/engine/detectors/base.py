@@ -85,7 +85,8 @@ def safe_float(val, default: float = 0.0) -> float:
     """Safely casts raw dataframe cells to float, bypassing commas and N/A strings."""
     try:
         import pandas as pd
-        if pd.isna(val): return default
+        if pd.isna(val):
+            return default
         if isinstance(val, str):
             val = val.replace(',', '').strip()
         return float(val)

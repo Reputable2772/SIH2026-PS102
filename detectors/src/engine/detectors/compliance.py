@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import POLICY
-from src.engine.detectors.base import safe_float, AnomalyCategory, BaseDetector, Finding
+from src.engine.detectors.base import AnomalyCategory, BaseDetector, Finding, safe_float
 
 
 class SanctionSLABreachDetector(BaseDetector):

@@ -200,9 +200,10 @@ def test_core_detection_engine_run(sample_works):
         assert len(f.next_review_action) > 0  # Mandated by AC-19
 
 # --- Added for Missing Coverage (FIN-D8, AGY-D11, FIN-D5, EXEC-D9) ---
-from src.engine.detectors.financial import TemporalDisbursementSpikeDetector, CostPeerOutlierDetector
 from src.engine.detectors.agency import IAOverloadDetector
 from src.engine.detectors.execution import ProgressExpenditureMismatchDetector
+from src.engine.detectors.financial import CostPeerOutlierDetector, TemporalDisbursementSpikeDetector
+
 
 def test_temporal_disbursement_spike_detector():
     """Validates FIN-D8 flags >1M disbursed across >=3 payments in <=7 days."""
@@ -254,7 +255,7 @@ def test_cost_peer_outlier_detector():
         "WORK_CATEGORY": "Education",
         "SANCTION_AMOUNT": 8500000.0 # Massive outlier
     }])
-    
+
     # Mock baseline engine with 500k median cost
     class MockBaseline:
         def get_peer_baseline(self, state, cat):
@@ -267,7 +268,7 @@ def test_cost_peer_outlier_detector():
                 cost_std: float = 80000.0
                 cohort_key: tuple = ("TEST_STATE", "Education")
             return Base(), 1.0
-            
+
     d = CostPeerOutlierDetector(z_threshold=2.5)
     findings = d.detect(df, MockBaseline())
     assert len(findings) == 1
