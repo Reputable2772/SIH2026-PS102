@@ -23,7 +23,14 @@ RUN pnpm run build
 # =========================================================================
 # Stage 2: Serve SPA and Reverse Proxy API via Caddy
 # =========================================================================
-FROM caddy:latest
+FROM docker.io/library/caddy:2.11.2-builder-alpine AS caddy-builder
+
+RUN xcaddy build \
+    --with github.com/caddy-dns/desec
+
+FROM docker.io/library/caddy:2.11.2-alpine
+
+COPY --from=caddy-builder /usr/bin/caddy /usr/bin/caddy
 
 # Copy Caddy configuration
 COPY docker/Caddyfile /etc/caddy/Caddyfile

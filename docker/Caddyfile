@@ -1,4 +1,10 @@
-:5173 {
+{env.DOMAIN} {
+    tls {
+        dns desec {
+            token {env.TOKEN}
+        }
+    }
+
     # Logging
     log {
         output stdout
