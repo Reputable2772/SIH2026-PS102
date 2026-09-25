@@ -4,10 +4,10 @@ AI Priority-Work Recommendations & Draft Letter API Endpoints (Pillars 12, 13, 1
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.core.auth import UserProfile, get_current_user, get_tenant_scope
+from backend.core.auth import UserProfile, UserRole, get_current_user, get_tenant_scope
 from backend.services.recommendation_service import RecommendationService
 
 router = APIRouter(prefix="/recommendations", tags=["AI Priority Recommendations & Draft Letter"])
@@ -39,11 +39,23 @@ def generate_draft_recommendation_letter(
 ):
     """
     Generates an official Form 2B recommendation letter from Hon'ble MP to District Authority.
+    Restricted to authenticated MP users and Central Oversight.
     """
+    if user.role not in (UserRole.MP_USER, UserRole.CENTRAL_AUDITOR):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Forbidden: User role '{user.role}' lacks authority to generate statutory Form 2B recommendation letters.",
+        )
+
     svc = RecommendationService.get_instance()
-    mp_name = payload.mp_name or user.name or "Smt. Supriya Sule"
-    constituency = payload.constituency or scope.get("CONSTITUENCY") or "Baramati (Maharashtra)"
-    dist_name = payload.district_authority_name or scope.get("IDA_NAME") or "Pune District Administration"
+    if user.role == UserRole.MP_USER:
+        mp_name = user.mp_name or user.name
+        constituency = user.constituency or "Baramati (Maharashtra)"
+        dist_name = payload.district_authority_name or user.district or "District Magistrate Office"
+    else:
+        mp_name = payload.mp_name or user.name or "Hon. Supriya Sule, MP"
+        constituency = payload.constituency or scope.get("CONSTITUENCY") or "Baramati (Maharashtra)"
+        dist_name = payload.district_authority_name or scope.get("IDA_NAME") or "Pune District Administration"
 
     return svc.generate_draft_recommendation_letter(
         selected_rec_ids=payload.selected_rec_ids,

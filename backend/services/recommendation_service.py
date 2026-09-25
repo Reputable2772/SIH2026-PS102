@@ -101,7 +101,11 @@ class RecommendationService:
             if quota_focus and tmpl["quota_tag"] != quota_focus.upper():
                 continue
 
-            cost = round(random.randint(tmpl["cost_range"][0], tmpl["cost_range"][1]) / 10000) * 10000
+            # Deterministic budget calculation to ensure Form 2B letters match on-screen estimates exactly
+            base_seed = sum(ord(c) for c in (target_district + tmpl["category"])) + idx * 7919
+            cost_span = tmpl["cost_range"][1] - tmpl["cost_range"][0]
+            offset = (base_seed % max(1, cost_span // 10000 + 1)) * 10000
+            cost = tmpl["cost_range"][0] + offset
             rec_id = f"REC-AI-{target_district[:4].upper()}-{101 + idx}"
 
             recs.append(

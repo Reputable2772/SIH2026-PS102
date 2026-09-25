@@ -72,7 +72,7 @@ class ComplianceService:
             role = scope.get("role")
             if role == "DISTRICT_AUTHORITY":
                 u_dist = str(scope.get("IDA_NAME", "")).strip().upper()
-                filtered_df = filtered_df[filtered_df["_ida_upper"] == u_dist]
+                filtered_df = filtered_df[filtered_df["_ida_upper"].apply(lambda v: u_dist in str(v) or str(v) in u_dist)]
             elif role == "STATE_NODAL_OFFICER":
                 u_state = str(scope.get("STATE_NAME", "")).strip().upper()
                 filtered_df = filtered_df[filtered_df["_state_upper"] == u_state]
@@ -83,15 +83,11 @@ class ComplianceService:
         if state and state != "ALL":
             filtered_df = filtered_df[filtered_df["_state_upper"] == state.strip().upper()]
         if district and district != "ALL":
-            filtered_df = filtered_df[filtered_df["_ida_upper"] == district.strip().upper()]
+            d_clean = district.strip().upper()
+            filtered_df = filtered_df[filtered_df["_ida_upper"].apply(lambda v: d_clean in str(v) or str(v) in d_clean)]
 
         total_works = len(filtered_df)
-        if total_works == 0:
-            total_works = 1
-
         total_sanction = float(filtered_df["SANCTION_AMOUNT"].sum())
-        if total_sanction <= 0:
-            total_sanction = 1.0
 
         # 1. SC / ST Allocation Quotas (Para 2.5)
         # Scan descriptions for SC / ST habitation indicators
@@ -101,20 +97,12 @@ class ComplianceService:
         sc_mask = descriptions.str.contains(SC_PATTERNS)
         st_mask = descriptions.str.contains(ST_PATTERNS)
 
-        sc_amount = float(amounts[sc_mask].sum())
-        st_amount = float(amounts[st_mask].sum())
+        sc_amount = float(amounts[sc_mask].sum()) if len(amounts) > 0 else 0.0
+        st_amount = float(amounts[st_mask].sum()) if len(amounts) > 0 else 0.0
 
-        # Baseline allocation simulation if explicit text tag is missing in sample
-        # ensure representative realistic rates (around 12-16% SC, 5-9% ST)
-        actual_sc_pct = (sc_amount / total_sanction) * 100.0
-        if actual_sc_pct < 5.0:
-            actual_sc_pct = 13.8  # Realistic statutory audit norm
-            sc_amount = (actual_sc_pct / 100.0) * total_sanction
-
-        actual_st_pct = (st_amount / total_sanction) * 100.0
-        if actual_st_pct < 2.0:
-            actual_st_pct = 6.4  # Realistic statutory audit norm
-            st_amount = (actual_st_pct / 100.0) * total_sanction
+        # Honest calculated statutory percentages
+        actual_sc_pct = round((sc_amount / total_sanction) * 100.0, 1) if total_sanction > 0 else 0.0
+        actual_st_pct = round((st_amount / total_sanction) * 100.0, 1) if total_sanction > 0 else 0.0
 
         sc_target_pct = 15.0
         st_target_pct = 7.5
