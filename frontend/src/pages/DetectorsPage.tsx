@@ -32,10 +32,15 @@ export const DetectorsPage: React.FC = () => {
       setDetectors(data);
       setLoading(false);
     });
-
-    // Run baseline simulation
-    runSimulation(45, 365, 2.5);
   }, []);
+
+  // Debounced live simulation updates
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      runSimulation(slaDays, executionDays, zThreshold);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [slaDays, executionDays, zThreshold]);
 
   const runSimulation = async (sla: number, exec: number, z: number) => {
     setSimulating(true);
@@ -57,7 +62,6 @@ export const DetectorsPage: React.FC = () => {
     setSlaDays(45);
     setExecutionDays(365);
     setZThreshold(2.5);
-    runSimulation(45, 365, 2.5);
   };
 
   return (
@@ -117,11 +121,7 @@ export const DetectorsPage: React.FC = () => {
               max={90}
               step={5}
               value={slaDays}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setSlaDays(val);
-                runSimulation(val, executionDays, zThreshold);
-              }}
+              onChange={(e) => setSlaDays(Number(e.target.value))}
               className="w-full accent-sky-500 cursor-pointer"
             />
             <span className="text-[10px] text-slate-500 block">Default: 45 days (MPLADS Para 3.2.4)</span>
@@ -139,11 +139,7 @@ export const DetectorsPage: React.FC = () => {
               max={730}
               step={30}
               value={executionDays}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setExecutionDays(val);
-                runSimulation(slaDays, val, zThreshold);
-              }}
+              onChange={(e) => setExecutionDays(Number(e.target.value))}
               className="w-full accent-sky-500 cursor-pointer"
             />
             <span className="text-[10px] text-slate-500 block">Default: 365 days (1 statutory year)</span>
@@ -161,11 +157,7 @@ export const DetectorsPage: React.FC = () => {
               max={4.0}
               step={0.1}
               value={zThreshold}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setZThreshold(val);
-                runSimulation(slaDays, executionDays, val);
-              }}
+              onChange={(e) => setZThreshold(Number(e.target.value))}
               className="w-full accent-amber-500 cursor-pointer"
             />
             <span className="text-[10px] text-slate-500 block">Default: 2.5σ (99.4th percentile peer group)</span>

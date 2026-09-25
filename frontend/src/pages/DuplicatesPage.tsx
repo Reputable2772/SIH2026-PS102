@@ -100,7 +100,7 @@ export const DuplicatesPage: React.FC<DuplicatesPageProps> = ({ onOpenDossier })
 
   useEffect(() => {
     fetchData();
-  }, [minSimilarity]);
+  }, [minSimilarity, currentUser]);
 
   const handleResolve = async (pairId: string, decision: 'CONFIRMED_DUPLICATE' | 'MARKED_LEGITIMATE') => {
     try {

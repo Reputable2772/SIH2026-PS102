@@ -146,26 +146,28 @@ export const WorksPage: React.FC<WorksPageProps> = ({ onOpenDossier, initialFilt
     }
     const headers = ['Rec ID', 'Work ID', 'Description', 'Category', 'State', 'District/IDA', 'MP Name', 'Sanction Amount (INR)', 'Total Disbursed (INR)', 'Priority', 'SLA Days'];
     const rows = works.map((w) => [
-      w.work_rec_id,
-      w.work_id,
-      `"${w.description.replace(/"/g, '""')}"`,
-      w.category,
-      w.state_name,
-      `"${w.ida_name}"`,
-      `"${w.mp_name}"`,
+      `"${w.work_rec_id}"`,
+      `"${w.work_id}"`,
+      `"${(w.description || '').replace(/"/g, '""')}"`,
+      `"${(w.category || '').replace(/"/g, '""')}"`,
+      `"${(w.state_name || '').replace(/"/g, '""')}"`,
+      `"${(w.ida_name || '').replace(/"/g, '""')}"`,
+      `"${(w.mp_name || '').replace(/"/g, '""')}"`,
       w.sanction_amount,
       w.total_disbursed,
-      w.priority,
+      `"${w.priority}"`,
       w.days_rec_to_sanction,
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `MPLADS_Works_${currentUser?.role || 'export'}_page${page}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     showToast('Export Complete', `Exported ${works.length} records to CSV`, 'success');
   };
 

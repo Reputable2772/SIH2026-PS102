@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StateMapMetric } from '../../types';
 import { INDIA_SVG_FEATURES, StateSvgFeature } from './indiaMapData';
 import clsx from 'clsx';
@@ -17,8 +17,9 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
   onSelectState,
   metricType = 'alerts',
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredFeature, setHoveredFeature] = useState<StateSvgFeature | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number; containerWidth: number } | null>(null);
 
   // Map metric lookup by state name (case-insensitive)
   const metricMap = React.useMemo(() => {
@@ -79,7 +80,7 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
     : null;
 
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-center p-2 select-none">
+    <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center p-2 select-none">
       <svg
         viewBox="0 0 600 680"
         className="w-full h-auto max-h-[560px] drop-shadow-2xl transition-all"
@@ -116,20 +117,22 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
                 )}
                 onMouseEnter={(e) => {
                   setHoveredFeature(feature);
-                  const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                  const rect = containerRef.current?.getBoundingClientRect();
                   if (rect) {
                     setTooltipPos({
                       x: e.clientX - rect.left,
                       y: e.clientY - rect.top,
+                      containerWidth: rect.width,
                     });
                   }
                 }}
                 onMouseMove={(e) => {
-                  const rect = e.currentTarget.ownerSVGElement?.getBoundingClientRect();
+                  const rect = containerRef.current?.getBoundingClientRect();
                   if (rect) {
                     setTooltipPos({
                       x: e.clientX - rect.left,
                       y: e.clientY - rect.top,
+                      containerWidth: rect.width,
                     });
                   }
                 }}
@@ -146,7 +149,12 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
 
       {/* Floating Hover Tooltip with Adaptive Flip for Northern States */}
       {hoveredFeature && tooltipPos && (() => {
-        const isNearTop = tooltipPos.y < 190;
+        const isNearTop = tooltipPos.y < 160;
+        const halfWidth = 115;
+        const clampedLeft = Math.max(
+          halfWidth + 12,
+          Math.min((tooltipPos.containerWidth || 600) - halfWidth - 12, tooltipPos.x)
+        );
         return (
           <div
             className={clsx(
@@ -154,8 +162,8 @@ export const IndiaSvgMap: React.FC<IndiaSvgMapProps> = ({
               isNearTop ? "mt-3" : "-translate-y-full -mt-3"
             )}
             style={{
-              left: Math.max(110, Math.min(490, tooltipPos.x)),
-              top: tooltipPos.y,
+              left: clampedLeft,
+              top: isNearTop ? Math.max(8, tooltipPos.y) : tooltipPos.y,
             }}
           >
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">

@@ -167,7 +167,7 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
         status,
         checked_actions: checkedActions,
         auditor_notes: auditorNotes,
-        auditor_name: reviewState?.auditor_name || currentUser?.name || 'Authorized Auditor',
+        auditor_name: currentUser?.name || reviewState?.auditor_name || 'Authorized Auditor',
       });
       setReviewState(updated);
       showToast(

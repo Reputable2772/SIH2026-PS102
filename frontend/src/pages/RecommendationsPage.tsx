@@ -80,7 +80,7 @@ export const RecommendationsPage: React.FC = () => {
 
   useEffect(() => {
     fetchRecommendations();
-  }, [quotaFilter]);
+  }, [quotaFilter, currentUser]);
 
   const toggleSelect = (recId: string) => {
     setSelectedIds((prev) =>
