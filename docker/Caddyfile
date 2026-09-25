@@ -1,0 +1,22 @@
+:5173 {
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+
+    # Response compression
+    encode zstd gzip
+
+    # Reverse proxy API requests to FastAPI backend container
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # Single Page Application (SPA) routing with HTML5 pushState fallback
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

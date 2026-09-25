@@ -9,7 +9,7 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # Copy dependency manifests
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -21,19 +21,19 @@ COPY frontend/ ./
 RUN pnpm run build
 
 # =========================================================================
-# Stage 2: Serve Production Assets via Nginx
+# Stage 2: Serve SPA and Reverse Proxy API via Caddy
 # =========================================================================
-FROM nginx:alpine
+FROM caddy:latest
 
-# Copy custom Nginx configuration
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+# Copy Caddy configuration
+COPY docker/Caddyfile /etc/caddy/Caddyfile
 
 # Copy compiled static assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /srv
 
-EXPOSE 80
+EXPOSE 5173
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:80 || exit 1
+HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://127.0.0.1:5173/ || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

@@ -1,0 +1,43 @@
+services:
+  backend:
+    command:
+      - uvicorn
+      - backend.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - 8000
+      - --reload
+      - --reload-dir
+      - /app/backend
+      - --reload-dir
+      - /app/detectors
+    environment:
+      - DEBUG=true
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./detectors:/app/detectors:ro
+      - ./data:/app/data:ro
+      - mplads_audit_data:/app/storage
+
+  caddy:
+    profiles: ["production"]
+
+  frontend:
+    image: localhost/prototype-autonomous-core_vite:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.vite
+    container_name: mplads-frontend-dev
+    working_dir: /app
+    environment:
+      - VITE_BACKEND_URL=http://backend:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
