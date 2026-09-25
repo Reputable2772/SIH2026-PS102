@@ -325,6 +325,75 @@ export const DossierModal: React.FC<DossierModalProps> = ({ workRecId, onClose }
                 <p className="text-xs text-slate-200 leading-relaxed font-sans">{dossier.description}</p>
               </div>
 
+              {/* EXPLAINABLE RISK ENGINE (0-100 Score & Diagnostic Signal Breakdown) */}
+              <div className="bg-[#131D31] border border-slate-800 rounded-xl p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <ShieldAlert className={clsx(
+                      'w-4 h-4',
+                      (dossier.risk_score ?? 0) >= 75 ? 'text-red-400' : (dossier.risk_score ?? 0) >= 50 ? 'text-orange-400' : 'text-emerald-400'
+                    )} />
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                      Explainable Risk Diagnostics • 0–100 Assessment
+                    </h3>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="text-right">
+                      <span className="text-[9px] text-slate-500 uppercase font-mono block">Numerical Risk Score</span>
+                      <span className={clsx(
+                        'text-base font-extrabold font-mono',
+                        (dossier.risk_score ?? 0) >= 75 ? 'text-red-400' : (dossier.risk_score ?? 0) >= 50 ? 'text-orange-400' : 'text-emerald-400'
+                      )}>
+                        {dossier.risk_score ?? 35} / 100
+                      </span>
+                    </div>
+                    <PriorityBadge priority={dossier.priority} size="md" />
+                  </div>
+                </div>
+
+                {/* Risk Progress Bar */}
+                <div className="space-y-1">
+                  <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800 flex">
+                    <div
+                      className={clsx(
+                        'h-full transition-all duration-500 rounded-full',
+                        (dossier.risk_score ?? 0) >= 75
+                          ? 'bg-gradient-to-r from-orange-500 to-red-500'
+                          : (dossier.risk_score ?? 0) >= 50
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500'
+                          : 'bg-gradient-to-r from-emerald-500 to-sky-500'
+                      )}
+                      style={{ width: `${Math.max(5, dossier.risk_score ?? 35)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Individual Signals Contributing to Score */}
+                <div className="space-y-2.5 pt-1">
+                  <span className="text-[10px] font-mono uppercase text-slate-400 font-semibold block">
+                    Diagnostic Signals Contributing to Score:
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {(dossier.risk_signals || []).map((sig, idx) => (
+                      <div key={idx} className="p-3 rounded-lg bg-[#0B1120] border border-slate-800 space-y-1.5 shadow-sm">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-200 flex items-center space-x-1.5">
+                            <span className="font-mono text-amber-400 font-bold">+{sig.weight}</span>
+                            <span>{sig.name}</span>
+                          </span>
+                          <PriorityBadge priority={sig.severity} size="sm" />
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug font-sans">{sig.explanation}</p>
+                        <div className="pt-1 text-[10px] font-mono text-sky-400 flex items-start space-x-1 border-t border-slate-800/60 mt-1">
+                          <span className="shrink-0 text-slate-500">Action:</span>
+                          <span className="text-slate-300">{sig.action}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               {/* STATUTORY LIFECYCLE MILESTONE STEPPER */}
               <div className="bg-[#131D31] border border-slate-800 rounded-xl p-5 space-y-4">
                 <div className="flex items-center justify-between">

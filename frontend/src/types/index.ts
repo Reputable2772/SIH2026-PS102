@@ -73,6 +73,14 @@ export interface DistrictMetric {
   risk_tier: string;
 }
 
+export interface RiskSignal {
+  weight: number;
+  name: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  explanation: string;
+  action: string;
+}
+
 export interface CanonicalWork {
   work_rec_id: string;
   work_id: string;
@@ -89,6 +97,8 @@ export interface CanonicalWork {
   primary_vendor: string;
   days_rec_to_sanction: number;
   days_since_sanction: number;
+  risk_score?: number;
+  risk_signals?: RiskSignal[];
 }
 
 export interface GovernanceDossier {
@@ -102,6 +112,8 @@ export interface GovernanceDossier {
   priority: PriorityTier;
   sanction_amount: number;
   total_disbursed: number;
+  risk_score?: number;
+  risk_signals?: RiskSignal[];
   five_questions: {
     q1_what_happened: string;
     q2_why_unusual: string;

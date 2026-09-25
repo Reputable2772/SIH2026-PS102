@@ -41,6 +41,14 @@ def export_dossier_html(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    signals_html = "".join(
+        f"<div style='margin-bottom:8px;padding:8px;background:#0f172a;border-radius:6px;border-left:3px solid #f97316;'>"
+        f"<strong>+{s['weight']} {s['name']}</strong> ({s['severity']})<br/>"
+        f"<span style='color:#94a3b8;font-size:0.9em;'>{s['explanation']}</span><br/>"
+        f"<span style='color:#38bdf8;font-size:0.85em;'>→ Recommended: {s['action']}</span></div>"
+        for s in d.get('risk_signals', [])
+    )
+
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -51,6 +59,7 @@ def export_dossier_html(
         h1 {{ color: #38bdf8; margin-top: 0; }}
         h2 {{ color: #94a3b8; border-bottom: 1px solid #334155; padding-bottom: 8px; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em; }}
         .badge {{ display: inline-block; padding: 4px 12px; border-radius: 9999px; font-weight: bold; background: #ef4444; color: white; }}
+        .score-pill {{ display: inline-block; padding: 4px 12px; border-radius: 9999px; font-weight: bold; background: #0284c7; color: white; margin-left: 8px; }}
         .qa {{ margin-bottom: 16px; }}
         .q {{ font-weight: 600; color: #cbd5e1; margin-bottom: 4px; }}
         .a {{ color: #94a3b8; background: #0f172a; padding: 12px; border-radius: 6px; }}
@@ -61,10 +70,16 @@ def export_dossier_html(
 <body>
     <div class="card">
         <span class="badge">{d['priority']} PRIORITY</span>
+        <span class="score-pill">RISK SCORE: {d.get('risk_score', 50)} / 100</span>
         <h1>Governance Dossier: Work #{d['work_rec_id']}</h1>
         <p><strong>Description:</strong> {d['description']}</p>
         <p><strong>Location:</strong> {d['ida_name']}, {d['state_name']} | <strong>MP:</strong> {d['mp_name']}</p>
         <p><strong>Sanctioned:</strong> ₹{d['sanction_amount']:,.0f} | <strong>Disbursed:</strong> ₹{d['total_disbursed']:,.0f}</p>
+    </div>
+
+    <div class="card">
+        <h2>Explainable Risk Diagnostics &amp; Contributing Signals</h2>
+        {signals_html if signals_html else "<p style='color:#94a3b8;'>Baseline statistical parameters. No guideline breaches detected.</p>"}
     </div>
 
     <div class="card">

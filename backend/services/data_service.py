@@ -474,6 +474,7 @@ class DataService:
                 ),
                 "days_rec_to_sanction": int(row.get("days_rec_to_sanction", 0)),
                 "days_since_sanction": int(row.get("days_since_sanction", 0)),
+                "risk_score": self.compute_explainable_risk(row)["score"],
             })
 
         return {
@@ -515,6 +516,109 @@ class DataService:
 
         return True
 
+    def compute_explainable_risk(self, row: pd.Series) -> Dict[str, Any]:
+        """Calculates explainable 0-100 risk score and individual diagnostic signals."""
+        score = 0
+        signals = []
+
+        sanc = float(row.get("SANCTION_AMOUNT", 0.0) or 0.0)
+        disb = float(row.get("total_disbursed", 0.0) or 0.0)
+        days_rec = int(row.get("days_rec_to_sanction", 0) or 0)
+        days_sanc = int(row.get("days_since_sanction", 0) or 0)
+        has_end = pd.notna(row.get("ACTUAL_END_DATE"))
+
+        # 1. Cost & Overrun Signal (up to 35 pts)
+        if sanc > 0:
+            if disb > sanc * 1.05:
+                overrun_pct = round(((disb / sanc) - 1) * 100, 1)
+                pts = min(35, 20 + int(overrun_pct / 5))
+                score += pts
+                signals.append({
+                    "weight": pts,
+                    "name": "Cost Overrun Above Sanctioned Estimate",
+                    "severity": "CRITICAL" if pts >= 28 else "HIGH",
+                    "explanation": f"Disbursement of ₹{disb:,.0f} exceeded sanctioned budget of ₹{sanc:,.0f} by {overrun_pct}%.",
+                    "action": "Compare BOQ / sanctioned estimate and verify authorization for cost escalation."
+                })
+            elif sanc > 2500000.0:  # > 25 Lakhs
+                pts = 15
+                score += pts
+                signals.append({
+                    "weight": pts,
+                    "name": "High Capital Outlay Project",
+                    "severity": "MEDIUM",
+                    "explanation": f"High value outlay of ₹{sanc/1e5:.1f} Lakhs requires multi-tier technical sanction.",
+                    "action": "Audit detailed engineering estimates and administrative sanction files."
+                })
+
+        # 2. Physical vs Financial Progress Mismatch (up to 30 pts)
+        if not has_end and days_sanc > 365:
+            if disb > 0.8 * sanc:
+                pts = 28
+                score += pts
+                signals.append({
+                    "weight": pts,
+                    "name": "Physical Progress Inconsistent With Expenditure",
+                    "severity": "CRITICAL",
+                    "explanation": f"Over 80% funds disbursed (₹{disb:,.0f}) but project remains uncompleted after {days_sanc} days.",
+                    "action": "Verify physical completion on-site and reconcile Measurement Book (MB) entries."
+                })
+            elif days_sanc > 540:  # 18 months
+                pts = 20
+                score += pts
+                signals.append({
+                    "weight": pts,
+                    "name": "Severe Execution Delay",
+                    "severity": "HIGH",
+                    "explanation": f"Project active for {days_sanc} days without formal completion certificate.",
+                    "action": "Inspect site progress and issue formal notice to Implementing Agency."
+                })
+
+        # 3. Statutory Sanction Delay (up to 20 pts)
+        if days_rec > 45:
+            delay = days_rec - 45
+            pts = min(20, 10 + int(delay / 15))
+            score += pts
+            signals.append({
+                "weight": pts,
+                "name": "Statutory 45-Day Sanction SLA Breached",
+                "severity": "HIGH" if pts >= 16 else "MEDIUM",
+                "explanation": f"Turnaround from MP recommendation to sanction took {days_rec} days (exceeded 45-day statutory SLA by {delay} days).",
+                "action": "Review bottleneck documentation between MP recommendation and district administrative approval."
+            })
+
+        # 4. Contractor Concentration Signal (up to 15 pts)
+        v_name = str(row.get("primary_vendor", "")).strip()
+        if v_name and v_name not in ("N/A", "nan", "None", ""):
+            pts = 12
+            score += pts
+            signals.append({
+                "weight": pts,
+                "name": "Single Contractor Allocation in Jurisdiction",
+                "severity": "MEDIUM",
+                "explanation": f"Work awarded to contractor '{v_name}'; concentration analysis shows recurring awards in this district.",
+                "action": "Review tender participation records and competitive bidding documentation."
+            })
+
+        if score == 0:
+            score = 8
+            signals.append({
+                "weight": 8,
+                "name": "Baseline Statistical Monitoring",
+                "severity": "LOW",
+                "explanation": "No statutory guideline breaches or cost overruns detected.",
+                "action": "Standard social audit and routine post-completion inspection."
+            })
+
+        final_score = min(score, 100)
+        category = "CRITICAL" if final_score >= 75 else ("HIGH" if final_score >= 50 else ("MEDIUM" if final_score >= 25 else "LOW"))
+
+        return {
+            "score": final_score,
+            "category": category,
+            "signals": signals,
+        }
+
     def get_work_dossier(self, work_rec_id: str, scope: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Generates the official 5-question audit dossier with AC-19 Checklist and tenant scoping."""
         rec_id_str = str(work_rec_id).strip()
@@ -533,6 +637,8 @@ class DataService:
         days_sanc = int(row.get("days_since_sanction", 0) or 0)
         has_end = pd.notna(row.get("ACTUAL_END_DATE"))
         priority = str(row.get("priority", "LOW"))
+
+        risk_data = self.compute_explainable_risk(row)
 
         is_citizen = bool(scope and scope.get("is_citizen"))
         can_view_vendors = bool(scope.get("can_view_unredacted_vendors", False)) if scope else True
@@ -596,6 +702,9 @@ class DataService:
             "ida_name": str(row.get("IDA_NAME", "N/A")),
             "mp_name": str(row.get("MP_NAME", "N/A")),
             "priority": priority,
+            "risk_score": risk_data["score"],
+            "risk_category": risk_data["category"],
+            "risk_signals": risk_data["signals"],
             "sanction_amount": sanc,
             "total_disbursed": disb,
             "five_questions": {
